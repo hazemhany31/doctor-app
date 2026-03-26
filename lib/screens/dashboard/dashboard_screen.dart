@@ -4,24 +4,44 @@ import '../../models/doctor.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
-import '../../widgets/stat_card.dart';
+import '../../widgets/shimmer_widgets.dart';
 import '../../widgets/appointment_card.dart';
+import '../../services/online_status_service.dart';
+import '../setup/setup_doctor_profile_screen.dart';
+import '../schedule/schedule_management_screen.dart';
+import '../appointments/appointments_screen.dart';
+import '../appointments/appointment_detail_screen.dart';
+import '../../config/constants.dart';
+import '../patients/patients_list_screen.dart';
+import '../../models/dashboard_data.dart';
+import '../../l10n/app_localizations.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// لوحة التحكم الرئيسية
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class DashboardScreenState extends State<DashboardScreen> {
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
 
   Doctor? _doctor;
-  Map<String, int> _stats = {};
+  List<String> _doctorIds = [];
   bool _isLoading = true;
+  String? _errorMessage;
+
+  // Online status
+  OnlineStatusService? _onlineStatusService;
+  bool _isOnline = false;
+
+  // Real-time notifications
+  StreamSubscription? _notificationSubscription;
 
   @override
   void initState() {
@@ -29,132 +49,305 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
       final user = _authService.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Not signed in';
+        });
+        return;
+      }
 
-      // الحصول على معلومات الدكتور
       final doctor = await _firestoreService.getDoctorByUserId(user.uid);
-      if (doctor == null) return;
+      if (doctor == null) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Doctor information not found';
+        });
+        return;
+      }
 
-      // الحصول على الإحصائيات
-      final stats = await _firestoreService.getDashboardStats(doctor.id);
-
+      if (!mounted) return;
       setState(() {
         _doctor = doctor;
-        _stats = stats;
+        _doctorIds = [doctor.id, user.uid];
         _isLoading = false;
+        _errorMessage = null;
       });
+
+      _setupNotificationListener(doctor.id);
     } catch (e) {
-      setState(() => _isLoading = false);
+      debugPrint('❌ Error in _loadData: $e');
+      if (_doctor != null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final l10n = AppLocalizations.of(context)!;
+      String errorMsg = l10n.dashErrorTitle;
+      if (e.toString().contains('unavailable') ||
+          e.toString().contains('network') ||
+          e.toString().contains('connection')) {
+        errorMsg = l10n.dashNoConnectionSub;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = errorMsg;
+      });
     }
+  }
+
+  void _setupNotificationListener(String doctorId) {
+    _notificationSubscription?.cancel();
+    _notificationSubscription = _firestoreService
+        .getNotificationsStream(doctorId)
+        .listen(
+      (snapshot) {
+        if (snapshot.docs.isNotEmpty) {
+          for (var change in snapshot.docChanges) {
+            if (change.type == DocumentChangeType.added) {
+              final data = change.doc.data() as Map<String, dynamic>;
+              _showInAppNotification(
+                change.doc.id,
+                data['title'] ?? 'New Appointment',
+                data['body'] ?? 'A patient has booked a new appointment',
+              );
+            }
+          }
+        }
+      },
+      onError: (e) => debugPrint('⚠️ Notifications stream error: $e'),
+    );
+  }
+
+  void _showInAppNotification(String id, String title, String body) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(body),
+          ],
+        ),
+        backgroundColor: AppColors.primary,
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'OK',
+          textColor: Colors.white,
+          onPressed: () {
+            _firestoreService.markNotificationAsRead(id);
+            _loadData();
+          },
+        ),
+      ),
+    );
+  }
+
+  void setOnlineStatusService(OnlineStatusService service) {
+    _onlineStatusService = service;
+    if (mounted) {
+      setState(() {
+        _isOnline = service.isOnline;
+      });
+    }
+  }
+
+  Future<void> _toggleOnlineStatus() async {
+    if (_onlineStatusService == null) return;
+    final newStatus = !_isOnline;
+    setState(() => _isOnline = newStatus);
+    await _onlineStatusService!.setOnlineStatus(newStatus);
+  }
+
+  String _getGreeting(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final hour = DateTime.now().hour;
+    if (hour < 12) return l10n.dashGreetingM;
+    if (hour < 17) return l10n.dashGreetingE;
+    return l10n.dashGreetingN;
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: AppColors.scaffoldBackground,
+        body: Column(
+          children: [
+            _buildLoadingHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    const Row(
+                      children: [
+                        Expanded(child: ShimmerStatCard()),
+                        SizedBox(width: 12),
+                        Expanded(child: ShimmerStatCard()),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Row(
+                      children: [
+                        Expanded(child: ShimmerStatCard()),
+                        SizedBox(width: 12),
+                        Expanded(child: ShimmerStatCard()),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const ShimmerListItem(),
+                    const ShimmerListItem(),
+                    const ShimmerListItem(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_errorMessage != null) {
+      final isMissingDoctorData = _errorMessage!.contains(
+        l10n.dashErrorNoDoctor.split('\n').first,
+      );
+      return Scaffold(
+        backgroundColor: AppColors.scaffoldBackground,
+        body: Column(
+          children: [
+            _buildLoadingHeader(),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: (isMissingDoctorData
+                                  ? AppColors.primary
+                                  : AppColors.error)
+                              .withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isMissingDoctorData
+                              ? Icons.person_add_outlined
+                              : Icons.cloud_off_outlined,
+                          size: 40,
+                          color: isMissingDoctorData
+                              ? AppColors.primary
+                              : AppColors.error,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        isMissingDoctorData
+                            ? l10n.dashErrorNoDoctor
+                            : _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SetupDoctorProfileScreen(),
+                            ),
+                          );
+                          if (result == true && mounted) _loadData();
+                        },
+                        icon: Icon(
+                          isMissingDoctorData ? Icons.person_add : Icons.refresh,
+                          size: 18,
+                        ),
+                        label: Text(
+                          isMissingDoctorData
+                              ? l10n.dashErrorSetupProfile
+                              : l10n.dashRetryBtn,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     if (_doctor == null) {
-      return Scaffold(body: Center(child: Text('حدث خطأ في تحميل البيانات')));
+      return const Scaffold(
+        backgroundColor: AppColors.scaffoldBackground,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
     }
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       body: RefreshIndicator(
+        color: AppColors.primary,
         onRefresh: _loadData,
         child: CustomScrollView(
           slivers: [
-            // AppBar
-            SliverAppBar(
-              expandedHeight: 120,
-              floating: false,
-              pinned: true,
-              backgroundColor: AppColors.primaryBlue,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          // صورة الدكتور
-                          CircleAvatar(
-                            radius: 35,
-                            backgroundImage: _doctor!.photoUrl != null
-                                ? NetworkImage(_doctor!.photoUrl!)
-                                : null,
-                            backgroundColor: Colors.white.withOpacity(0.3),
-                            child: _doctor!.photoUrl == null
-                                ? Icon(
-                                    Icons.person,
-                                    size: 35,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          SizedBox(width: 16),
-                          // معلومات الدكتور
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'د. ${_doctor!.name}',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  _doctor!.specialization,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // أيقونة الإشعارات
-                          IconButton(
-                            icon: Icon(
-                              Icons.notifications_outlined,
-                              color: Colors.white,
-                            ),
-                            onPressed: () {
-                              // TODO: Navigate to notifications
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // المحتوى
+            SliverToBoxAdapter(child: _buildHeroHeader(context)),
             SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 16),
-                  // الإحصائيات
-                  _buildStatsSection(),
-                  SizedBox(height: 24),
-                  // مواعيد اليوم
-                  _buildTodayAppointmentsSection(),
-                  SizedBox(height: 24),
-                ],
+              child: StreamBuilder<DashboardData>(
+                stream: _firestoreService.getDashboardUnifiedStream(_doctorIds),
+                initialData: DashboardData.empty(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    debugPrint('⚠️ Dashboard Stream Error: ${snapshot.error}');
+                  }
+                  final data = snapshot.data ?? DashboardData.empty();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildStatsSection(data),
+                      const SizedBox(height: 24),
+                      _buildTodayAppointmentsSection(data.todayAppointments),
+                      const SizedBox(height: 100),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -163,143 +356,480 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'نظرة عامة',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ),
-        SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.3,
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          children: [
-            StatCard(
-              title: 'مرضى اليوم',
-              value: '${_stats['todayPatients'] ?? 0}',
-              icon: Icons.people,
-              color: AppColors.primaryBlue,
-            ),
-            StatCard(
-              title: 'مواعيد معلقة',
-              value: '${_stats['pendingAppointments'] ?? 0}',
-              icon: Icons.pending_actions,
-              color: AppColors.warning,
-            ),
-            StatCard(
-              title: 'مواعيد قادمة',
-              value: '${_stats['upcomingAppointments'] ?? 0}',
-              icon: Icons.event,
-              color: AppColors.success,
-            ),
-            StatCard(
-              title: 'إجمالي المرضى',
-              value: '${_stats['totalPatients'] ?? 0}',
-              icon: Icons.group,
-              color: AppColors.secondaryTeal,
-            ),
-          ],
-        ),
-      ],
+  Widget _buildLoadingHeader() {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(gradient: AppColors.headerGradient),
     );
   }
 
-  Widget _buildTodayAppointmentsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildHeroHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      decoration: BoxDecoration(gradient: AppColors.headerGradient),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'مواعيد اليوم',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  // TODO: Navigate to all appointments
-                },
-                child: Text('عرض الكل'),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: 8),
-        StreamBuilder<List<Appointment>>(
-          stream: _firestoreService.getTodayAppointments(_doctor!.id),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(
-                  child: Column(
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_getGreeting(context)} 👋',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textOnDark.withValues(alpha: 0.7),
+                            fontFamily: 'Cairo',
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          l10n.dashDrName(_doctor!.name),
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontFamily: 'Cairo',
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _doctor!.specialization,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.accentLight,
+                            fontFamily: 'Cairo',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Stack(
                     children: [
-                      Icon(
-                        Icons.event_available,
-                        size: 64,
-                        color: AppColors.textHint,
+                      CircleAvatar(
+                        radius: 34,
+                        backgroundImage: _doctor!.photoUrl != null
+                            ? CachedNetworkImageProvider(_doctor!.photoUrl!)
+                            : null,
+                        backgroundColor: Colors.white.withValues(alpha: 0.15),
+                        child: _doctor!.photoUrl == null
+                            ? Icon(
+                                Icons.person_rounded,
+                                size: 34,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              )
+                            : null,
                       ),
-                      SizedBox(height: 16),
-                      Text(
-                        'لا توجد مواعيد اليوم',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textSecondary,
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: _isOnline
+                                ? AppColors.success
+                                : AppColors.textHint,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.headerDark,
+                              width: 2,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-              );
-            }
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: _onlineStatusService != null
+                        ? _toggleOnlineStatus
+                        : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isOnline
+                            ? AppColors.success.withValues(alpha: 0.25)
+                            : Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _isOnline
+                              ? AppColors.success.withValues(alpha: 0.5)
+                              : Colors.white.withValues(alpha: 0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _isOnline
+                                  ? AppColors.success
+                                  : AppColors.textHint,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _isOnline ? 'Available' : 'Unavailable',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _isOnline
+                                  ? AppColors.success
+                                  : Colors.white.withValues(alpha: 0.6),
+                              fontFamily: 'Cairo',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ScheduleManagementScreen(),
+                      ),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_month_rounded,
+                            size: 14,
+                            color: Colors.white.withValues(alpha: 0.85),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Manage Schedule',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontFamily: 'Cairo',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            final appointments = snapshot.data!;
-            return ListView.builder(
+  Widget _buildStatsSection(DashboardData data) {
+    final stats = [
+      _StatData(
+        label: 'Today\'s Patients',
+        value: '${data.todayPatients}',
+        icon: Icons.people_rounded,
+        color: AppColors.primary,
+        bg: AppColors.primary.withValues(alpha: 0.1),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AppointmentsScreen(initialIndex: 0),
+          ),
+        ),
+      ),
+      _StatData(
+        label: 'Pending',
+        value: '${data.pendingAppointments}',
+        icon: Icons.hourglass_top_rounded,
+        color: AppColors.warning,
+        bg: AppColors.warning.withValues(alpha: 0.1),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AppointmentsScreen(initialIndex: 1),
+          ),
+        ),
+      ),
+      _StatData(
+        label: 'Upcoming',
+        value: '${data.upcomingAppointments}',
+        icon: Icons.event_rounded,
+        color: AppColors.info,
+        bg: AppColors.info.withValues(alpha: 0.1),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AppointmentsScreen(initialIndex: 2),
+          ),
+        ),
+      ),
+      _StatData(
+        label: 'Total',
+        value: '${data.totalPatients}',
+        icon: Icons.group_rounded,
+        color: const Color(0xFF8B5CF6),
+        bg: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PatientsListScreen()),
+        ),
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('Overview'),
+          const SizedBox(height: 12),
+          Row(
+            children: stats
+                .map(
+                  (s) => Expanded(
+                    child: GestureDetector(
+                      onTap: s.onTap,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                          horizontal: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: AppColors.cardShadow,
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: s.bg,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(s.icon, color: s.color, size: 18),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              s.value,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: s.color,
+                                fontFamily: 'Cairo',
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              s.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                                fontFamily: 'Cairo',
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, {Widget? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              fontFamily: 'Cairo',
+            ),
+          ),
+        ),
+        ?trailing,
+      ],
+    );
+  }
+
+  Widget _buildTodayAppointmentsSection(List<Appointment> appointments) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(
+            'Today\'s Appointments',
+            trailing: TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AppointmentsScreen(initialIndex: 0),
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'View All',
+                style: TextStyle(
+                  fontFamily: 'Cairo',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (appointments.isEmpty)
+            _buildEmptyState(
+              icon: Icons.event_available_rounded,
+              title: 'No Appointments Today',
+              subtitle: 'A quiet day, enjoy!',
+            )
+          else
+            ListView.separated(
               shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: appointments.length > 5 ? 5 : appointments.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 return AppointmentCard(
                   appointment: appointments[index],
-                  showActions: appointments[index].status == 'pending',
+                  showActions: appointments[index].status == AppConstants.appointmentPending,
                   onAccept: () => _handleAcceptAppointment(appointments[index]),
                   onReject: () => _handleRejectAppointment(appointments[index]),
-                  onTap: () {
-                    // TODO: Navigate to appointment details
-                  },
+                  onTap: (appointments[index].status == AppConstants.appointmentPending ||
+                          appointments[index].status == AppConstants.appointmentCancelled)
+                      ? null
+                      : () {
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute(
+                              builder: (context) => AppointmentDetailScreen(
+                                appointment: appointments[index],
+                              ),
+                            ),
+                          );
+                        },
                 );
               },
-            );
-          },
-        ),
-      ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Widget? action,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 28,
+              color: AppColors.primary.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+              fontFamily: 'Cairo',
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontFamily: 'Cairo',
+              ),
+            ),
+          ],
+          if (action != null) ...[const SizedBox(height: 8), action],
+        ],
+      ),
     );
   }
 
@@ -311,17 +841,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم قبول الموعد'),
-            backgroundColor: AppColors.success,
+        Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute(
+            builder: (context) => AppointmentDetailScreen(
+              appointment: appointment.copyWith(status: 'confirmed'),
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ'), backgroundColor: AppColors.error),
+          const SnackBar(
+            content: Text('An error occurred'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -332,13 +866,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await _firestoreService.updateAppointmentStatus(
         appointment.id,
         'cancelled',
-        cancelReason: 'تم الرفض من قبل الدكتور',
+        cancelReason: 'Rejected by doctor',
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم رفض الموعد'),
+          const SnackBar(
+            content: Text('Appointment rejected'),
             backgroundColor: AppColors.warning,
           ),
         );
@@ -346,9 +880,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ'), backgroundColor: AppColors.error),
+          const SnackBar(content: Text('حدث خطأ'), backgroundColor: AppColors.error),
         );
       }
     }
   }
+}
+
+class _StatData {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final Color bg;
+  final VoidCallback onTap;
+  const _StatData({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.bg,
+    required this.onTap,
+  });
 }

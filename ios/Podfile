@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -39,5 +39,30 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    
+    target.build_configurations.each do |config|
+      # Set deployment target
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings.delete 'IPHONEOS_DEPLOYMENT_TARGET[sdk=iphoneos*]'
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+      
+      # Remove unsupported compiler flags from all flag settings
+      ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS', 'OTHER_LDFLAGS', 'OTHER_SWIFT_FLAGS'].each do |flag_name|
+        if config.build_settings[flag_name]
+          if config.build_settings[flag_name].is_a?(String)
+            config.build_settings[flag_name].gsub!(/\s*-G\s*/, ' ')
+          elsif config.build_settings[flag_name].is_a?(Array)
+            config.build_settings[flag_name].delete('-G')
+          end
+        end
+      end
+      
+      # For gRPC specifically, ensure no -G flag
+      if target.name.include?('gRPC') || target.name.include?('BoringSSL') || target.name.include?('abseil')
+        config.build_settings['GCC_OPTIMIZATION_LEVEL'] = '0'
+        config.build_settings.delete('OTHER_CFLAGS')
+        config.build_settings.delete('OTHER_CPLUSPLUSFLAGS')
+      end
+    end
   end
 end

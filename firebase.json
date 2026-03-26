@@ -1,0 +1,45 @@
+{
+    "firestore": {
+        "rules": "firestore.rules",
+        "indexes": "firestore.indexes.json"
+    },
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "nbig-app",
+                    "appId": "1:610302298484:android:db85f271038e1477fd0421",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "ios": {
+                "default": {
+                    "projectId": "nbig-app",
+                    "appId": "1:610302298484:ios:ce2754df20aa9490fd0421",
+                    "uploadDebugSymbols": false,
+                    "fileOutput": "ios/Runner/GoogleService-Info.plist"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "nbig-app",
+                    "configurations": {
+                        "android": "1:610302298484:android:db85f271038e1477fd0421",
+                        "ios": "1:610302298484:ios:ce2754df20aa9490fd0421",
+                        "macos": "1:610302298484:ios:42b13eac01494186fd0421",
+                        "web": "1:610302298484:web:f77e47d11773ddadfd0421",
+                        "windows": "1:610302298484:web:9cf8395bc0407121fd0421"
+                    }
+                }
+            },
+            "macos": {
+                "default": {
+                    "projectId": "nbig-app",
+                    "appId": "1:610302298484:ios:42b13eac01494186fd0421",
+                    "uploadDebugSymbols": false,
+                    "fileOutput": "macos/Runner/GoogleService-Info.plist"
+                }
+            }
+        }
+    }
+}

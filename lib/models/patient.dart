@@ -1,3 +1,4 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// نموذج بيانات المريض
@@ -56,14 +57,24 @@ class Patient {
 
   /// إنشاء Patient من Map
   factory Patient.fromMap(String id, Map<String, dynamic> map) {
+    // Robust name resolution: check common fields and ignore generic fallbacks
+    String rawName = (map['name']?.toString() ?? 
+                     map['displayName']?.toString() ?? 
+                     map['fullName']?.toString() ?? '').trim();
+    
+    // If name is literally "Patient" (English) or "مريض" (Arabic), consider it empty
+    if (rawName.toLowerCase() == 'patient' || rawName == 'مريض') {
+      rawName = '';
+    }
+
     return Patient(
       id: id,
       userId: map['userId'] ?? '',
-      name: map['name'] ?? '',
+      name: rawName,
       email: map['email'] ?? '',
-      phone: map['phone'] ?? '',
-      photoUrl: map['photoUrl'],
-      dateOfBirth: (map['dateOfBirth'] as Timestamp?)?.toDate(),
+      phone: map['phone'] ?? map['phoneNumber'] ?? '',
+      photoUrl: map['photoUrl'] ?? map['photoURL'],
+      dateOfBirth: (map['dateOfBirth'] is Timestamp) ? (map['dateOfBirth'] as Timestamp).toDate() : null,
       gender: map['gender'],
       bloodType: map['bloodType'],
       address: map['address'],
@@ -71,7 +82,7 @@ class Patient {
       allergies: List<String>.from(map['allergies'] ?? []),
       previousSurgeries: List<String>.from(map['previousSurgeries'] ?? []),
       currentMedications: List<String>.from(map['currentMedications'] ?? []),
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (map['createdAt'] is Timestamp) ? (map['createdAt'] as Timestamp).toDate() : DateTime.now(),
     );
   }
 

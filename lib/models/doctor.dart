@@ -1,3 +1,4 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// نموذج بيانات الدكتور
@@ -17,6 +18,8 @@ class Doctor {
   final double rating;
   final int reviewsCount;
   final DateTime createdAt;
+  final bool isOnline;
+  final DateTime? lastSeen;
 
   Doctor({
     required this.id,
@@ -34,6 +37,8 @@ class Doctor {
     this.rating = 0.0,
     this.reviewsCount = 0,
     required this.createdAt,
+    this.isOnline = false,
+    this.lastSeen,
   });
 
   /// إنشاء Doctor من Firestore DocumentSnapshot
@@ -52,7 +57,9 @@ class Doctor {
       phone: map['phone'] ?? '',
       photoUrl: map['photoUrl'],
       specialization: map['specialization'] ?? '',
-      yearsOfExperience: map['yearsOfExperience'] ?? 0,
+      yearsOfExperience: (map['yearsOfExperience'] ?? 0) is int
+          ? map['yearsOfExperience']
+          : int.tryParse(map['yearsOfExperience'].toString()) ?? 0,
       certificates: List<String>.from(map['certificates'] ?? []),
       bio: map['bio'],
       clinicInfo: ClinicInfo.fromMap(map['clinicInfo'] ?? {}),
@@ -61,9 +68,15 @@ class Doctor {
             (key, value) => MapEntry(key, DaySchedule.fromMap(value)),
           ) ??
           {},
-      rating: (map['rating'] ?? 0.0).toDouble(),
-      reviewsCount: map['reviewsCount'] ?? 0,
+      rating: (map['rating'] ?? 0.0) is double
+          ? (map['rating'] ?? 0.0)
+          : double.tryParse(map['rating'].toString()) ?? 0.0,
+      reviewsCount: (map['reviewsCount'] ?? 0) is int
+          ? map['reviewsCount']
+          : int.tryParse(map['reviewsCount'].toString()) ?? 0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isOnline: map['isOnline'] ?? false,
+      lastSeen: (map['lastSeen'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -84,6 +97,8 @@ class Doctor {
       'rating': rating,
       'reviewsCount': reviewsCount,
       'createdAt': Timestamp.fromDate(createdAt),
+      'isOnline': isOnline,
+      'lastSeen': lastSeen != null ? Timestamp.fromDate(lastSeen!) : null,
     };
   }
 
@@ -103,6 +118,8 @@ class Doctor {
     double? rating,
     int? reviewsCount,
     DateTime? createdAt,
+    bool? isOnline,
+    DateTime? lastSeen,
   }) {
     return Doctor(
       id: id ?? this.id,
@@ -120,6 +137,8 @@ class Doctor {
       rating: rating ?? this.rating,
       reviewsCount: reviewsCount ?? this.reviewsCount,
       createdAt: createdAt ?? this.createdAt,
+      isOnline: isOnline ?? this.isOnline,
+      lastSeen: lastSeen ?? this.lastSeen,
     );
   }
 }
@@ -128,6 +147,8 @@ class Doctor {
 class ClinicInfo {
   final String name;
   final String address;
+  final String? phone;
+  final String? workingHours;
   final double? latitude;
   final double? longitude;
   final double fees;
@@ -136,6 +157,8 @@ class ClinicInfo {
   ClinicInfo({
     required this.name,
     required this.address,
+    this.phone,
+    this.workingHours,
     this.latitude,
     this.longitude,
     required this.fees,
@@ -146,6 +169,8 @@ class ClinicInfo {
     return ClinicInfo(
       name: map['name'] ?? '',
       address: map['address'] ?? '',
+      phone: map['phone'],
+      workingHours: map['workingHours'],
       latitude: map['latitude']?.toDouble(),
       longitude: map['longitude']?.toDouble(),
       fees: (map['fees'] ?? 0.0).toDouble(),
@@ -157,6 +182,8 @@ class ClinicInfo {
     return {
       'name': name,
       'address': address,
+      'phone': phone,
+      'workingHours': workingHours,
       'latitude': latitude,
       'longitude': longitude,
       'fees': fees,

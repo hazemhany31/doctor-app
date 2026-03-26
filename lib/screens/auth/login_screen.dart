@@ -1,7 +1,7 @@
+
 import 'package:flutter/material.dart';
 import 'package:doctor_app/config/colors.dart';
 import 'package:doctor_app/services/auth_service.dart';
-import 'package:doctor_app/screens/main_layout.dart';
 
 /// شاشة تسجيل الدخول
 class LoginScreen extends StatefulWidget {
@@ -38,18 +38,21 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
-      if (mounted) {
-        // الانتقال إلى الشاشة الرئيسية
-        Navigator.of(
-          context,
-        ).pushReplacement(MaterialPageRoute(builder: (_) => MainLayout()));
-      }
+      // AuthCheck will automatically navigate to MainLayout
+      // when authStateChanges stream detects the logged in user
     } catch (e) {
       if (mounted) {
+        // تنظيف رسالة الخطأ من "Exception:" prefix
+        String errorMessage = e.toString();
+        if (errorMessage.startsWith('Exception: ')) {
+          errorMessage = errorMessage.substring(11);
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text(errorMessage),
             backgroundColor: AppColors.error,
+            duration: Duration(seconds: 4),
           ),
         );
       }
@@ -68,7 +71,10 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.primaryBlue.withOpacity(0.1), Colors.white],
+            colors: [
+              AppColors.primaryBlue.withValues(alpha: 0.1),
+              Colors.white,
+            ],
           ),
         ),
         child: SafeArea(
@@ -215,27 +221,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                       ),
-                    ),
-                    SizedBox(height: 24),
-
-                    // تسجيل جديد
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'ليس لديك حساب؟ ',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            // TODO: Navigate to register screen
-                          },
-                          child: Text(
-                            'سجّل الآن',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),

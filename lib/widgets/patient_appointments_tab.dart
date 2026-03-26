@@ -1,9 +1,11 @@
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../config/colors.dart';
 import '../config/constants.dart';
 import '../models/appointment.dart';
 import '../services/firestore_service.dart';
+import '../l10n/app_localizations.dart';
 
 /// تبويب مواعيد المريض
 class PatientAppointmentsTab extends StatelessWidget {
@@ -21,8 +23,10 @@ class PatientAppointmentsTab extends StatelessWidget {
           return Center(child: CircularProgressIndicator());
         }
 
+        final l10n = AppLocalizations.of(context)!;
+
         if (snapshot.hasError) {
-          return Center(child: Text('حدث خطأ في تحميل المواعيد'));
+          return Center(child: Text(l10n.ptApptErrorLoad));
         }
 
         final appointments = snapshot.data ?? [];
@@ -39,7 +43,7 @@ class PatientAppointmentsTab extends StatelessWidget {
                 ),
                 SizedBox(height: 16),
                 Text(
-                  'لا توجد مواعيد',
+                  l10n.ptApptEmpty, // fixed invalid getter
                   style: TextStyle(
                     fontSize: 16,
                     color: AppColors.textSecondary,
@@ -51,16 +55,19 @@ class PatientAppointmentsTab extends StatelessWidget {
         }
 
         // تقسيم المواعيد إلى قادمة وسابقة
+        // اعتبر المواعيد المعلقة والمؤكدة ضمن القادمة لتبقى في الأعلى
         final upcomingAppointments = appointments
-            .where((a) => a.isUpcoming)
+            .where((a) => a.isUpcoming || a.status == AppConstants.appointmentPending || a.status == AppConstants.appointmentConfirmed)
             .toList();
-        final pastAppointments = appointments.where((a) => a.isPast).toList();
+        final pastAppointments = appointments
+            .where((a) => !(a.isUpcoming || a.status == AppConstants.appointmentPending || a.status == AppConstants.appointmentConfirmed))
+            .toList();
 
         return ListView(
           padding: EdgeInsets.all(16),
           children: [
             if (upcomingAppointments.isNotEmpty) ...[
-              _buildSectionHeader('المواعيد القادمة'),
+              _buildSectionHeader(l10n.ptApptUpcomingTitle),
               SizedBox(height: 8),
               ...upcomingAppointments.map(
                 (appointment) =>
@@ -69,7 +76,7 @@ class PatientAppointmentsTab extends StatelessWidget {
               SizedBox(height: 24),
             ],
             if (pastAppointments.isNotEmpty) ...[
-              _buildSectionHeader('المواعيد السابقة'),
+              _buildSectionHeader(l10n.ptApptPastTitle),
               SizedBox(height: 8),
               ...pastAppointments.map(
                 (appointment) =>
@@ -98,12 +105,22 @@ class PatientAppointmentsTab extends StatelessWidget {
     Appointment appointment,
     bool isUpcoming,
   ) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -116,83 +133,179 @@ class PatientAppointmentsTab extends StatelessWidget {
                     children: [
                       Text(
                         DateFormat(
-                          'EEEE، d MMMM yyyy',
-                          'ar',
+                          'EEEE, d MMMM yyyy',
+                          Localizations.localeOf(context).languageCode,
                         ).format(appointment.dateTime),
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          fontFamily: 'Cairo',
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        DateFormat('h:mm a', 'ar').format(appointment.dateTime),
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time_filled_rounded,
+                            size: 14,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            DateFormat(
+                              'h:mm a',
+                              Localizations.localeOf(context).languageCode,
+                            ).format(appointment.dateTime),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                _buildStatusChip(appointment.status),
+                _buildStatusChip(context, appointment.status),
               ],
             ),
             if (appointment.doctorName != null) ...[
-              SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.person, size: 18, color: AppColors.primaryBlue),
-                  SizedBox(width: 8),
-                  Text(
-                    'د. ${appointment.doctorName}',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person, size: 16, color: AppColors.primaryBlue),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${AppLocalizations.of(context)!.ptApptDoctorPrefix}${appointment.doctorName}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.grey[300] : Colors.grey[800],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
             if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
-              SizedBox(height: 8),
-              Text(
-                appointment.notes!,
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.orange.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  appointment.notes!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.orange[200] : Colors.orange[800],
+                  ),
+                ),
               ),
             ],
+            
+            // ─── Patient Report ───
+            if (appointment.patientReport != null && appointment.patientReport!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildSectionTitle(context, AppLocalizations.of(context)!.ptInfoMedicalHistory, Icons.assignment_rounded, isDark),
+              const SizedBox(height: 8),
+              Text(
+                appointment.patientReport!,
+                style: TextStyle(fontSize: 14, color: isDark ? Colors.grey[300] : Colors.grey[800]),
+              ),
+            ],
+
+            // ─── Doctor Notes ───
+            if (appointment.doctorNotes != null && appointment.doctorNotes!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildSectionTitle(context, AppLocalizations.of(context)!.ptRecordsNotes, Icons.medical_information_rounded, isDark),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.primaryBlue.withValues(alpha: 0.1) : AppColors.primaryBlue.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  appointment.doctorNotes!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.blue[200] : AppColors.primaryBlue,
+                  ),
+                ),
+              ),
+            ],
+
+            // ─── Prescriptions ───
+            if (appointment.prescriptions.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildSectionTitle(context, AppLocalizations.of(context)!.ptRecordsPrescriptions, Icons.medication_rounded, isDark),
+              const SizedBox(height: 8),
+              ...appointment.prescriptions.map((med) => _buildMedicineCard(context, med, isDark)),
+            ],
+
             // أزرار تحديث الحالة (للمواعيد القادمة فقط)
             if (isUpcoming &&
                 appointment.status != AppConstants.appointmentCompleted &&
                 appointment.status != AppConstants.appointmentCancelled) ...[
-              SizedBox(height: 12),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   if (appointment.status == AppConstants.appointmentPending)
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: ElevatedButton.icon(
                         onPressed: () => _updateAppointmentStatus(
                           context,
                           appointment.id,
                           AppConstants.appointmentConfirmed,
                         ),
-                        icon: Icon(Icons.check, size: 18),
-                        label: Text('تأكيد'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.green,
-                          side: BorderSide(color: Colors.green),
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+                        label: Text(
+                          AppLocalizations.of(context)!.ptApptBtnConfirm,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xFF10B981),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ),
                   if (appointment.status == AppConstants.appointmentPending)
-                    SizedBox(width: 8),
+                    const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _showCancelDialog(context, appointment.id),
-                      icon: Icon(Icons.close, size: 18),
-                      label: Text('إلغاء'),
+                      onPressed: () => _showCancelDialog(context, appointment.id),
+                      icon: const Icon(Icons.cancel_outlined, size: 20),
+                      label: Text(
+                        AppLocalizations.of(context)!.ptApptBtnCancel,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: BorderSide(color: Colors.red),
+                        foregroundColor: const Color(0xFFEF4444),
+                        side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -205,26 +318,117 @@ class PatientAppointmentsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusChip(String status) {
+  Widget _buildSectionTitle(BuildContext context, String title, IconData icon, bool isDark) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.grey[300] : Colors.grey[800],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMedicineCard(BuildContext context, AppointmentMedicine med, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.vaccines_rounded, size: 16, color: AppColors.primaryBlue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  med.name,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                    decoration: med.isTaken ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ),
+              if (med.isTaken)
+                Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              _buildMedDetail(isDark, Icons.monitor_weight_outlined, med.dosage),
+              _buildMedDetail(isDark, Icons.repeat_rounded, med.frequency),
+              if (med.frequencyHours != null)
+                _buildMedDetail(isDark, Icons.access_time_rounded, 
+                  Localizations.localeOf(context).languageCode == 'ar' 
+                  ? 'كل ${med.frequencyHours} ساعة' 
+                  : 'Every ${med.frequencyHours} hrs'),
+              _buildMedDetail(isDark, Icons.date_range_rounded, med.duration),
+              if (med.reminderTime != null)
+                _buildMedDetail(isDark, Icons.alarm_on_rounded, 
+                  Localizations.localeOf(context).languageCode == 'ar' 
+                  ? 'تنبيه: ${DateFormat('hh:mm a', 'ar').format(med.reminderTime!)}' 
+                  : 'Alarm: ${DateFormat('hh:mm a', 'en').format(med.reminderTime!)}'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMedDetail(bool isDark, IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: isDark ? Colors.grey[500] : Colors.grey[500]),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? Colors.grey[400] : Colors.grey[700],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(BuildContext context, String status) {
+    final l10n = AppLocalizations.of(context)!;
     Color color;
     String text;
 
     switch (status) {
       case AppConstants.appointmentPending:
         color = Colors.orange;
-        text = 'قيد الانتظار';
+        text = l10n.apptCardStatusPending;
         break;
       case AppConstants.appointmentConfirmed:
         color = Colors.blue;
-        text = 'مؤكد';
+        text = l10n.apptCardStatusConfirmed;
         break;
       case AppConstants.appointmentCompleted:
         color = Colors.green;
-        text = 'مكتمل';
+        text = l10n.apptCardStatusCompleted;
         break;
       case AppConstants.appointmentCancelled:
         color = Colors.red;
-        text = 'ملغي';
+        text = l10n.apptCardStatusCancelled;
         break;
       default:
         color = Colors.grey;
@@ -234,7 +438,7 @@ class PatientAppointmentsTab extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color),
       ),
@@ -257,30 +461,33 @@ class PatientAppointmentsTab extends StatelessWidget {
     try {
       await _firestoreService.updateAppointmentStatus(appointmentId, status);
       if (context.mounted) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('تم تحديث حالة الموعد')));
+        ).showSnackBar(SnackBar(content: Text(l10n.ptApptUpdateStatusSuccess)));
       }
     } catch (e) {
       if (context.mounted) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('حدث خطأ في تحديث الحالة')));
+        ).showSnackBar(SnackBar(content: Text(l10n.ptApptUpdateStatusError)));
       }
     }
   }
 
   void _showCancelDialog(BuildContext context, String appointmentId) {
+    final l10n = AppLocalizations.of(context)!;
     final reasonController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('إلغاء الموعد'),
+        title: Text(l10n.ptApptCancelTitle),
         content: TextField(
           controller: reasonController,
           decoration: InputDecoration(
-            labelText: 'سبب الإلغاء (اختياري)',
+            labelText: l10n.ptApptCancelReasonHint,
             border: OutlineInputBorder(),
           ),
           maxLines: 3,
@@ -288,7 +495,7 @@ class PatientAppointmentsTab extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('تراجع'),
+            child: Text(l10n.ptApptCancelBtnBack),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -306,11 +513,11 @@ class PatientAppointmentsTab extends StatelessWidget {
               );
 
               messenger.showSnackBar(
-                SnackBar(content: Text('تم إلغاء الموعد')),
+                SnackBar(content: Text(l10n.ptApptCancelSuccess)),
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('إلغاء الموعد'),
+            child: Text(l10n.ptApptCancelBtnConfirm),
           ),
         ],
       ),

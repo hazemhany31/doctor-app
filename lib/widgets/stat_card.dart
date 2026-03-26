@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../config/colors.dart';
 
@@ -32,7 +33,10 @@ class StatCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+              colors: [
+                color.withValues(alpha: 0.1),
+                color.withValues(alpha: 0.05),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

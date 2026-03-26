@@ -1,8 +1,10 @@
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'colors.dart';
 
-/// Theme الخاص بالتطبيق
+/// Theme الخاص بالتطبيق — Premium Medical Edition
 class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
@@ -10,62 +12,69 @@ class AppTheme {
 
       // Color Scheme
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primaryBlue,
-        primary: AppColors.primaryBlue,
+        seedColor: AppColors.primary,
+        primary: AppColors.primary,
         secondary: AppColors.secondaryTeal,
         error: AppColors.error,
         surface: AppColors.cardBackground,
+        brightness: Brightness.light,
       ),
 
       // Scaffold Background
       scaffoldBackgroundColor: AppColors.scaffoldBackground,
 
-      // Typography - Using Cairo for Arabic
+      // Typography — Cairo for Arabic
       textTheme: GoogleFonts.cairoTextTheme(
         TextTheme(
-          // Headlines
           headlineLarge: TextStyle(
             fontSize: 28,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
             color: AppColors.textPrimary,
+            letterSpacing: -0.5,
           ),
           headlineMedium: TextStyle(
             fontSize: 24,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
           headlineSmall: TextStyle(
             fontSize: 20,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
-
-          // Titles
           titleLarge: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
           titleMedium: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
           titleSmall: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: AppColors.textSecondary,
           ),
-
-          // Body
-          bodyLarge: TextStyle(fontSize: 16, color: AppColors.textPrimary),
-          bodyMedium: TextStyle(fontSize: 14, color: AppColors.textPrimary),
-          bodySmall: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-
-          // Labels
+          bodyLarge: TextStyle(
+            fontSize: 16,
+            color: AppColors.textPrimary,
+            height: 1.5,
+          ),
+          bodyMedium: TextStyle(
+            fontSize: 14,
+            color: AppColors.textPrimary,
+            height: 1.5,
+          ),
+          bodySmall: TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+            height: 1.4,
+          ),
           labelLarge: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
           labelMedium: TextStyle(
@@ -75,22 +84,24 @@ class AppTheme {
           ),
           labelSmall: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w400,
+            fontWeight: FontWeight.w500,
             color: AppColors.textHint,
           ),
         ),
       ),
 
-      // AppBar Theme
+      // AppBar — transparent, handled per screen
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.primaryBlue,
+        backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textOnPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         iconTheme: IconThemeData(color: AppColors.textOnPrimary),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         titleTextStyle: GoogleFonts.cairo(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
           color: AppColors.textOnPrimary,
         ),
       ),
@@ -98,55 +109,63 @@ class AppTheme {
       // Card Theme
       cardTheme: CardThemeData(
         color: AppColors.cardBackground,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.border, width: 1),
+        ),
+        margin: EdgeInsets.zero,
       ),
 
-      // Elevated Button Theme
+      // Elevated Button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryBlue,
-          foregroundColor: AppColors.textOnPrimary,
-          elevation: 2,
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: GoogleFonts.cairo(
-            fontSize: 16,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+
+      // Text Button
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: GoogleFonts.cairo(
+            fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
 
-      // Text Button Theme
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: AppColors.primaryBlue,
-          textStyle: GoogleFonts.cairo(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-
-      // Input Decoration Theme
+      // Input Decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.cardBackground,
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        fillColor: AppColors.surfaceVariant.withValues(alpha: 0.5),
+        contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.primaryBlue, width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: AppColors.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: AppColors.error),
         ),
         labelStyle: GoogleFonts.cairo(
@@ -156,39 +175,32 @@ class AppTheme {
         hintStyle: GoogleFonts.cairo(fontSize: 14, color: AppColors.textHint),
       ),
 
-      // Bottom Navigation Bar Theme
+      // Bottom Nav — handled via custom widget in main_layout
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: AppColors.cardBackground,
-        selectedItemColor: AppColors.primaryBlue,
-        unselectedItemColor: AppColors.textSecondary,
-        selectedLabelStyle: GoogleFonts.cairo(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        unselectedLabelStyle: GoogleFonts.cairo(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
-        ),
+        backgroundColor: Colors.transparent,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textHint,
+        elevation: 0,
         type: BottomNavigationBarType.fixed,
-        elevation: 8,
       ),
 
-      // Floating Action Button Theme
+      // FAB
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primaryBlue,
-        foregroundColor: AppColors.textOnPrimary,
-        elevation: 4,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
 
-      // Divider Theme
+      // Divider
       dividerTheme: DividerThemeData(
-        color: AppColors.divider,
+        color: AppColors.border,
         thickness: 1,
         space: 1,
       ),
 
-      // Icon Theme
-      iconTheme: IconThemeData(color: AppColors.textSecondary, size: 24),
+      // Icon
+      iconTheme: IconThemeData(color: AppColors.textSecondary, size: 22),
     );
   }
 }

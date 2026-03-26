@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "610302298484",
+    "project_id": "nbig-app",
+    "storage_bucket": "nbig-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:610302298484:android:db85f271038e1477fd0421",
+        "android_client_info": {
+          "package_name": "com.doctor.nbig_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "610302298484-ouuemn27ifqqvn6ubeejdd9lv1m4eeev.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnPV_vYY91x_tZC12vIVb9URQvoE48Y0w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "610302298484-ouuemn27ifqqvn6ubeejdd9lv1m4eeev.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "610302298484-4r5up4iis3am6jcfjq2ao696cbrsbkq8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.nbigApp.macos"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:610302298484:android:dbb64d3e5c93ccbcfd0421",
+        "android_client_info": {
+          "package_name": "com.example.nbig_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "610302298484-k65jadtq80ptt0202ho4h19ibb1ib8rv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.nbig_app",
+            "certificate_hash": "fec7ab3bfa16eff221aed32b403c1a2910367523"
+          }
+        },
+        {
+          "client_id": "610302298484-ouuemn27ifqqvn6ubeejdd9lv1m4eeev.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnPV_vYY91x_tZC12vIVb9URQvoE48Y0w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "610302298484-ouuemn27ifqqvn6ubeejdd9lv1m4eeev.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "610302298484-4r5up4iis3am6jcfjq2ao696cbrsbkq8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.nbigApp.macos"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

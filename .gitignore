@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Security / Credentials
+**/google-services.json
+**/GoogleService-Info.plist
+**/key.properties
+**/*.jks
+
+# Temporary analysis files
+analyze_output*.txt
+analyze_output_cleanup.txt
+*.txt.bak

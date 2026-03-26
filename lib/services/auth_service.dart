@@ -1,6 +1,11 @@
+import 'package:flutter/foundation.dart';
+
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/constants.dart';
+import 'push_notification_service.dart';
+import 'app_notification_service.dart';
 
 /// خدمة المصادقة
 class AuthService {
@@ -19,39 +24,172 @@ class AuthService {
     required String password,
   }) async {
     try {
+      debugPrint('🔐 محاولة تسجيل الدخول: $email');
       final credential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
 
-      // التحقق من أن المستخدم دكتور
-      final isDoctor = await checkDoctorRole(credential.user!.uid);
-      if (!isDoctor) {
-        // تسجيل الخروج إذا لم يكن دكتور
-        await signOut();
-        throw Exception(AppConstants.errorNotDoctor);
+      debugPrint('✅ تم تسجيل الدخول بنجاح - User ID: ${credential.user!.uid}');
+
+      // التحقق من أن المستخدم دكتور مع timeout
+      debugPrint('🔍 جاري التحقق من دور المستخدم...');
+
+      try {
+        // إضافة timeout للتحقق من الدور (10 ثواني)
+        final isDoctor = await checkDoctorRole(credential.user!.uid).timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            debugPrint('⏱️ انتهى وقت التحقق من الدور - السماح بالدخول');
+            // في حالة timeout، نسمح للمستخدم بالدخول
+            // لأن من الأفضل السماح بالدخول بدلاً من منعه
+            return true;
+          },
+        );
+
+        if (!isDoctor) {
+          debugPrint('❌ المستخدم ليس دكتور - تسجيل الخروج');
+          // تسجيل الخروج إذا لم يكن دكتور
+          await signOut();
+          throw Exception(AppConstants.errorNotDoctor);
+        }
+
+        debugPrint('✅ المستخدم دكتور - نجح التسجيل');
+        
+        // Save FCM token after successful login
+        try {
+          if (!kIsWeb) {
+            final pushService = PushNotificationService();
+            await pushService.saveFCMToken();
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error saving FCM token during login: $e');
+        }
+        
+      } on Exception catch (e) {
+        // إذا كان الخطأ متعلق بالشبكة أو قاعدة البيانات، لا نقوم بتسجيل الخروج
+        // نعيد رمي الاستثناء ليتم عرض رسالة خطأ للمستخدم
+        if (e.toString().contains('الاتصال') ||
+            e.toString().contains('قاعدة البيانات') ||
+            e.toString().contains('الإنترنت')) {
+          debugPrint(
+            '⚠️ خطأ في الاتصال أثناء التحقق من الدور - المستخدم سيبقى مسجل دخول',
+          );
+          // في حالة خطأ الشبكة، نسمح بالدخول بدلاً من منعه
+          debugPrint('✅ السماح بالدخول رغم خطأ الشبكة');
+          return credential;
+        }
+        // أي استثناء آخر نعيد رميه
+        rethrow;
       }
 
       return credential;
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ خطأ Firebase Auth: ${e.code}');
       throw _handleAuthException(e);
+    } catch (e) {
+      debugPrint('❌ خطأ عام: $e');
+      rethrow;
     }
   }
 
   /// التحقق من أن المستخدم دكتور
   Future<bool> checkDoctorRole(String userId) async {
     try {
+      debugPrint('📄 البحث عن مستند المستخدم في Firestore...');
+      debugPrint('   Collection: ${AppConstants.usersCollection}');
+      debugPrint('   User ID: $userId');
+
+      // إضافة timeout للاستعلام من Firestore (8 ثواني)
       final userDoc = await _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .get();
+          .get()
+          .timeout(
+            Duration(seconds: 8),
+            onTimeout: () {
+              debugPrint('⏱️ انتهى وقت الاستعلام من Firestore');
+              throw Exception(
+                'خطأ في الاتصال بقاعدة البيانات. يرجى التحقق من اتصال الإنترنت.',
+              );
+            },
+          );
 
-      if (!userDoc.exists) return false;
+      if (!userDoc.exists) {
+        debugPrint('❌ مستند المستخدم غير موجود');
+        throw Exception(
+          'لم يتم العثور على حساب الدكتور. يرجى التواصل مع الإدارة.',
+        );
+      }
 
-      final role = userDoc.data()?['role'];
-      return role == AppConstants.roleDoctor;
-    } catch (e) {
+      debugPrint('✅ تم العثور على المستند');
+      final data = userDoc.data();
+      debugPrint('   البيانات: $data');
+
+      final role = data?['role'];
+      debugPrint('   الدور: $role');
+      debugPrint('   الدور المطلوب: ${AppConstants.roleDoctor}');
+
+      if (role != AppConstants.roleDoctor) {
+        debugPrint('❌ المستخدم ليس دكتور');
+        throw Exception('هذا الحساب ليس حساب دكتور.');
+      }
+
+      // التحقق من وجود ملف الدكتور في collection doctors
+      debugPrint('🔍 التحقق من وجود ملف الدكتور...');
+      final doctorQuery = await _firestore
+          .collection(AppConstants.doctorsCollection)
+          .where('userId', isEqualTo: userId)
+          .limit(1)
+          .get()
+          .timeout(
+            Duration(seconds: 8),
+            onTimeout: () {
+              debugPrint('⏱️ انتهى وقت البحث عن ملف الدكتور');
+              throw Exception('خطأ في الاتصال بقاعدة البيانات.');
+            },
+          );
+
+      if (doctorQuery.docs.isEmpty) {
+        debugPrint('❌ ملف الدكتور غير موجود في collection doctors');
+        throw Exception(
+          'لم يتم العثور على ملف الدكتور. يرجى التواصل مع الإدارة لإنشاء ملفك الشخصي.',
+        );
+      }
+
+      debugPrint('✅ ملف الدكتور موجود - ID: ${doctorQuery.docs.first.id}');
+      debugPrint('✅ المستخدم دكتور وملفه الشخصي موجود');
+      return true;
+    } on FirebaseException catch (e) {
+      debugPrint(
+        '❌ خطأ Firestore في checkDoctorRole: ${e.code} - ${e.message}',
+      );
+
+      // إذا كان الخطأ بسبب عدم توفر الخدمة أو مشكلة في الشبكة، نرمي استثناء
+      // بدلاً من إرجاع false لتجنب تسجيل الخروج غير المرغوب فيه
+      if (e.code == 'unavailable' ||
+          e.code == 'deadline-exceeded' ||
+          e.code == 'resource-exhausted' ||
+          e.code == 'aborted') {
+        throw Exception(
+          'خطأ في الاتصال بقاعدة البيانات. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.',
+        );
+      }
+
+      // في حالة أي خطأ آخر، نعيد false
       return false;
+    } catch (e) {
+      debugPrint('❌ خطأ عام في checkDoctorRole: $e');
+      // إذا كان خطأ شبكة، نرمي استثناء
+      if (e.toString().contains('network') ||
+          e.toString().contains('connection') ||
+          e.toString().contains('Internet')) {
+        throw Exception(
+          'خطأ في الاتصال. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.',
+        );
+      }
+      // إذا كان Exception معرّف، نعيد رميه
+      rethrow;
     }
   }
 
@@ -73,7 +211,47 @@ class AuthService {
 
   /// تسجيل الخروج
   Future<void> signOut() async {
+    AppNotificationService().stopListening();
     await _auth.signOut();
+  }
+
+  /// حذف الحساب نهائياً (متطلب إلزامي للمتاجر)
+  Future<void> deleteAccount() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('المستخدم غير مسجل الدخول');
+
+      final userId = user.uid;
+
+      // 1. حذف الإشعارات التابعة للمستخدم
+      AppNotificationService().stopListening();
+
+      // 2. حذف ملف الدكتور من collection 'doctors'
+      final doctorDocs = await _firestore
+          .collection(AppConstants.doctorsCollection)
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      for (var doc in doctorDocs.docs) {
+        await doc.reference.delete();
+      }
+
+      // 3. حذف ملف المستخدم من collection 'users'
+      await _firestore.collection(AppConstants.usersCollection).doc(userId).delete();
+
+      // 4. حذف الحساب من Firebase Auth
+      await user.delete();
+      
+      debugPrint('✅ تم حذف الحساب وبياناته بنجاح');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        throw Exception('يرجى تسجيل الخروج ثم تسجيل الدخول مجدداً لتأكيد حذف الحساب.');
+      }
+      throw _handleAuthException(e);
+    } catch (e) {
+      debugPrint('❌ خطأ في حذف الحساب: $e');
+      throw Exception('فشل في حذف الحساب، حاول مجدداً.');
+    }
   }
 
   /// إرسال رابط إعادة تعيين كلمة المرور

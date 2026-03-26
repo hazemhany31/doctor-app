@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../../config/colors.dart';
 import '../../models/patient.dart';
@@ -5,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/patient_card.dart';
 import 'patient_details_screen.dart';
+import '../../l10n/app_localizations.dart';
 
 /// شاشة قائمة المرضى
 class PatientsListScreen extends StatefulWidget {
@@ -33,6 +35,7 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
     if (user == null) return;
 
     final doctor = await _firestoreService.getDoctorByUserId(user.uid);
+    if (!mounted) return;
     if (doctor != null) {
       setState(() => _doctorId = doctor.id);
     }
@@ -46,9 +49,10 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: Text('المرضى'),
+        title: Text(l10n.ptsTitle),
         backgroundColor: AppColors.primaryBlue,
       ),
       body: Column(
@@ -59,7 +63,7 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'ابحث عن مريض...',
+                hintText: l10n.ptsSearchHint,
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -75,7 +79,9 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
             child: _doctorId == null
                 ? Center(child: CircularProgressIndicator())
                 : StreamBuilder<List<Patient>>(
-                    stream: _firestoreService.getDoctorPatients(_doctorId!),
+                    stream: _firestoreService.getDoctorPatients(
+                      [_doctorId!, _authService.currentUser!.uid],
+                    ),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return Center(child: CircularProgressIndicator());
@@ -93,7 +99,7 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
                               ),
                               SizedBox(height: 16),
                               Text(
-                                'لا يوجد مرضى',
+                                l10n.ptsNoPatients,
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: AppColors.textSecondary,
@@ -119,7 +125,7 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
                       if (patients.isEmpty) {
                         return Center(
                           child: Text(
-                            'لا توجد نتائج',
+                            l10n.ptsNoResults,
                             style: TextStyle(color: AppColors.textSecondary),
                           ),
                         );

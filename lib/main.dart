@@ -1,18 +1,76 @@
+
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'firebase_options.dart';
+import 'package:flutter/foundation.dart';
 import 'config/theme.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main_layout.dart';
 import 'services/auth_service.dart';
+import 'package:provider/provider.dart';
+import 'l10n/app_localizations.dart';
+import 'providers/locale_provider.dart';
+import 'services/local_notification_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة Firebase
-  await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  runApp(const DoctorApp());
+    if (!kIsWeb) {
+      await LocalNotificationService().init();
+    }
+
+    firestore.FirebaseFirestore.instance.settings = const firestore.Settings(
+      persistenceEnabled: false,
+    );
+
+    runApp(
+      ChangeNotifierProvider(
+        create: (_) => LocaleProvider(),
+        child: const DoctorApp(),
+      ),
+    );
+  } catch (e, stackTrace) {
+    debugPrint('❌ FATAL ERROR during initialization: $e');
+    debugPrint('Stack trace: $stackTrace');
+    // Show error screen
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    'App Initialization Error',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Error: $e',
+                    style: TextStyle(fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class DoctorApp extends StatelessWidget {
@@ -20,24 +78,23 @@ class DoctorApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localeProvider = Provider.of<LocaleProvider>(context);
     return MaterialApp(
-      title: 'تطبيق الدكتور',
+      title: 'Doctor App',
       debugShowCheckedModeBanner: false,
 
       // Theme
       theme: AppTheme.lightTheme,
 
-      // RTL Support for Arabic
+      // Localization
       localizationsDelegates: [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: [
-        Locale('ar', 'EG'), // Arabic
-        Locale('en', 'US'), // English
-      ],
-      locale: Locale('ar', 'EG'),
+      supportedLocales: const [Locale('ar'), Locale('en')],
+      locale: localeProvider.locale,
 
       // Authentication Check
       home: AuthCheck(),
@@ -56,19 +113,46 @@ class AuthCheck extends StatelessWidget {
     return StreamBuilder(
       stream: _authService.authStateChanges,
       builder: (context, snapshot) {
-        // Loading
+        if (snapshot.hasError) {
+          return const LoginScreen();
+        }
+
+        // Loading — شاشة تحميل احترافية
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 20),
+                  Text(
+                    'NBIG Doctor',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'جارٍ التحميل...',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          );
         }
 
         // Check if user is logged in
         if (snapshot.hasData && snapshot.data != null) {
           // User is logged in
-          return MainLayout();
+          return const MainLayout();
         }
 
         // User is not logged in
-        return LoginScreen();
+        return const LoginScreen();
       },
     );
   }
