@@ -4,6 +4,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'config/secrets.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -42,7 +43,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAnPV_vYY91x_tZC12vIVb9URQvoE48Y0w',
+    apiKey: Secrets.androidApiKey,
     appId: '1:610302298484:android:db85f271038e1477fd0421',
     messagingSenderId: '610302298484',
     projectId: 'nbig-app',
@@ -50,7 +51,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBV1sTw60c8NWOXkVQ1JmrWOjwxFSmSBSE',
+    apiKey: Secrets.iosApiKey,
     appId: '1:610302298484:ios:ce2754df20aa9490fd0421',
     messagingSenderId: '610302298484',
     projectId: 'nbig-app',
@@ -61,7 +62,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDzndqFIozKgt5whaWRdy1IaI_z2lFrTwg',
+    apiKey: Secrets.webApiKey,
     appId: '1:610302298484:web:f77e47d11773ddadfd0421',
     messagingSenderId: '610302298484',
     projectId: 'nbig-app',
@@ -71,7 +72,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBV1sTw60c8NWOXkVQ1JmrWOjwxFSmSBSE',
+    apiKey: Secrets.iosApiKey,
     appId: '1:610302298484:ios:42b13eac01494186fd0421',
     messagingSenderId: '610302298484',
     projectId: 'nbig-app',
@@ -82,7 +83,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDzndqFIozKgt5whaWRdy1IaI_z2lFrTwg',
+    apiKey: Secrets.webApiKey,
     appId: '1:610302298484:web:9cf8395bc0407121fd0421',
     messagingSenderId: '610302298484',
     projectId: 'nbig-app',

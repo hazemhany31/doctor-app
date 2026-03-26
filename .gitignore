@@ -54,3 +54,6 @@ app.*.map.json
 analyze_output*.txt
 analyze_output_cleanup.txt
 *.txt.bak
+
+# Secrets
+lib/config/secrets.dart
