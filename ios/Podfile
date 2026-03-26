@@ -44,7 +44,6 @@ post_install do |installer|
       # Set deployment target
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
       config.build_settings.delete 'IPHONEOS_DEPLOYMENT_TARGET[sdk=iphoneos*]'
-      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
       
       # Remove unsupported compiler flags from all flag settings
       ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS', 'OTHER_LDFLAGS', 'OTHER_SWIFT_FLAGS'].each do |flag_name|
