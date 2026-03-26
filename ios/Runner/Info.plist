@@ -26,15 +26,33 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	
-	<!-- ✅ App Store Privacy Keys -->
 	<key>NSCameraUsageDescription</key>
 	<string>يحتاج التطبيق إلى صلاحية الكاميرا لالتقاط وإرفاق صور التحاليل والتقارير الطبية للمرضى. (App requires camera access to capture and attach medical reports for patients).</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>يحتاج التطبيق إلى صلاحية الوصول لمعرض الصور لاختيار وإرفاق المستندات الطبية والصور الشخصية. (App requires photo library access to upload medical documents and profile pictures).</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>يحتاج التطبيق إلى صلاحية الميكروفون لتسجيل الملاحظات الصوتية أو الاستشارات المرئية. (App requires microphone access for voice notes and video consultations).</string>
-
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>يحتاج التطبيق إلى صلاحية الوصول لمعرض الصور لاختيار وإرفاق المستندات الطبية والصور الشخصية. (App requires photo library access to upload medical documents and profile pictures).</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
