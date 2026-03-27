@@ -11,6 +11,7 @@ class AppNotificationService {
 
   StreamSubscription<QuerySnapshot>? _subscription;
   final Set<String> _processedIds = {};
+  bool _isFirstLoad = true; // Add this line
 
   // نفس نمط تطبيق المريض — نستخدم LocalNotificationService مباشرة
   final _notif = LocalNotificationService();
@@ -29,6 +30,17 @@ class AppNotificationService {
         .listen(
       (snapshot) {
         debugPrint('📩 Snapshot: ${snapshot.docs.length} unread docs');
+
+        // Guard for initial load: skip processing existing unread notifications
+        // Only mark them as seen in _processedIds so they won't fire later
+        if (_isFirstLoad) {
+          _isFirstLoad = false;
+          for (var doc in snapshot.docs) {
+            _processedIds.add(doc.id);
+          }
+          debugPrint('ℹ️ Initial load: seeded ${snapshot.docs.length} existing IDs, skipping alerts.');
+          return;
+        }
 
         for (var change in snapshot.docChanges) {
           if (change.type == DocumentChangeType.added) {
@@ -72,5 +84,6 @@ class AppNotificationService {
     _subscription?.cancel();
     _subscription = null;
     _processedIds.clear();
+    _isFirstLoad = true; // Reset for next startListening call
   }
 }

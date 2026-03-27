@@ -19,16 +19,22 @@ void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } on FirebaseException catch (e) {
+      if (e.code != 'duplicate-app') rethrow;
+      debugPrint('ℹ️ Firebase already initialized (native layer), continuing...');
+    }
 
     if (!kIsWeb) {
       await LocalNotificationService().init();
     }
 
     firestore.FirebaseFirestore.instance.settings = const firestore.Settings(
-      persistenceEnabled: false,
+      persistenceEnabled: true,
+      cacheSizeBytes: firestore.Settings.CACHE_SIZE_UNLIMITED,
     );
 
     runApp(

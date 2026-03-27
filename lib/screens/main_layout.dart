@@ -76,24 +76,39 @@ class _MainLayoutState extends State<MainLayout>
     _loadDoctorId();
   }
 
-  Future<void> _loadDoctorId() async {
+  bool _doctorNotFound = false;
+
+  Future<void> _loadDoctorId({int retryCount = 0}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final doctor = await _firestoreService.getDoctorByUserId(user.uid);
-        if (doctor != null && mounted) {
-          setState(() {
-            _doctorId = doctor.id;
-          });
-          _initializeOnlineStatus(doctor.id);
-          _listenToEmergencies(doctor.id);
+      if (user == null) return;
 
-          // تشغيل مستمع الإشعارات (Auth UID + Doctor Document ID)
-          AppNotificationService().startListening([user.uid, doctor.id]);
+      final doctor = await _firestoreService.getDoctorByUserId(user.uid);
+      if (doctor != null && mounted) {
+        setState(() {
+          _doctorId = doctor.id;
+          _doctorNotFound = false;
+        });
+        _initializeOnlineStatus(doctor.id);
+        _listenToEmergencies(doctor.id);
+        AppNotificationService().startListening([user.uid, doctor.id]);
+      } else if (mounted) {
+        // Retry up to 3 times with increasing delay (connectivity might be initializing)
+        if (retryCount < 3) {
+          final delay = Duration(seconds: (retryCount + 1) * 2);
+          debugPrint('⏳ Doctor not found, retrying in ${delay.inSeconds}s (attempt ${retryCount + 1}/3)...');
+          await Future.delayed(delay);
+          if (mounted) _loadDoctorId(retryCount: retryCount + 1);
+        } else {
+          debugPrint('❌ Doctor document not found after 3 retries for userId: ${user.uid}');
+          if (mounted) setState(() => _doctorNotFound = true);
         }
       }
     } catch (e) {
-      if (mounted) {}
+      if (mounted && retryCount < 3) {
+        await Future.delayed(Duration(seconds: (retryCount + 1) * 2));
+        if (mounted) _loadDoctorId(retryCount: retryCount + 1);
+      }
     }
   }
 
@@ -179,6 +194,49 @@ class _MainLayoutState extends State<MainLayout>
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+
+    if (_doctorNotFound) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffoldBackground,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.cloud_off_rounded, size: 72, color: Colors.grey.shade400),
+                const SizedBox(height: 20),
+                const Text(
+                  'تعذّر تحميل بيانات الدكتور',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'تأكد من اتصالك بالإنترنت وأن ملفك الشخصي موجود في Firestore',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() => _doctorNotFound = false);
+                    _loadDoctorId();
+                  },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('إعادة المحاولة'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       extendBody: true,

@@ -204,6 +204,7 @@ class FirestoreService {
   // ==================== Appointments ====================
 
   /// الحصول على مواعيد الدكتور مع دعم الفلاتر المتقدمة
+  /// يستعلم على doctorId وdoctorUserId معاً لضمان إيجاد كل المواعيد
   Stream<List<Appointment>> getDoctorAppointments(
     List<String> doctorIds, {
     String? status,
@@ -211,20 +212,83 @@ class FirestoreService {
   }) {
     debugPrint('🔍 getDoctorAppointments: doctorIds=$doctorIds, status=$status, upcomingOnly=$upcomingOnly');
 
-    // Ensure unique IDs to avoid Firestore errors
     final uniqueIds = doctorIds.toSet().toList();
     if (uniqueIds.isEmpty) return Stream.value([]);
 
-    return _firestore
+    // Run TWO parallel streams: one by 'doctorId', one by 'doctorUserId'
+    final byDoctorId = _firestore
         .collection(AppConstants.appointmentsCollection)
         .where('doctorId', whereIn: uniqueIds)
-        .snapshots()
-        .asyncMap((snapshot) async {
+        .snapshots();
+
+    final byDoctorUserId = _firestore
+        .collection(AppConstants.appointmentsCollection)
+        .where('doctorUserId', whereIn: uniqueIds)
+        .snapshots();
+
+    return _mergeDualStream(byDoctorId, byDoctorUserId).asyncMap((allDocs) =>
+        _processDoctorAppointments(allDocs, status: status, upcomingOnly: upcomingOnly));
+  }
+
+  /// Merges two Firestore snapshot streams, deduplicating docs by ID.
+  /// Uses a single-subscription controller to ensure initial snapshots are not lost.
+  Stream<List<DocumentSnapshot>> _mergeDualStream(
+    Stream<QuerySnapshot> s1,
+    Stream<QuerySnapshot> s2,
+  ) {
+    StreamSubscription<QuerySnapshot>? sub1;
+    StreamSubscription<QuerySnapshot>? sub2;
+    final Map<String, DocumentSnapshot> cache1 = {};
+    final Map<String, DocumentSnapshot> cache2 = {};
+
+    late final StreamController<List<DocumentSnapshot>> controller;
+
+    void emit() {
+      if (controller.isClosed) return;
+      final merged = <String, DocumentSnapshot>{};
+      merged.addAll(cache1);
+      merged.addAll(cache2);
+      controller.add(merged.values.toList());
+    }
+
+    controller = StreamController<List<DocumentSnapshot>>(
+      onListen: () {
+        sub1 = s1.listen((snap) {
+          cache1.clear();
+          for (var doc in snap.docs) { cache1[doc.id] = doc; }
+          emit();
+        }, onError: (e) {
+          if (!controller.isClosed) controller.addError(e);
+        });
+
+        sub2 = s2.listen((snap) {
+          cache2.clear();
+          for (var doc in snap.docs) { cache2[doc.id] = doc; }
+          emit();
+        }, onError: (e) {
+          if (!controller.isClosed) controller.addError(e);
+        });
+      },
+      onCancel: () {
+        sub1?.cancel();
+        sub2?.cancel();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  /// Internal helper to process and filter appointment docs
+  Future<List<Appointment>> _processDoctorAppointments(
+    List<DocumentSnapshot> docs, {
+    String? status,
+    bool? upcomingOnly,
+  }) async {
       final now = DateTime.now();
       
       // 1. Initial parsing with safety
       List<Appointment> appointments = [];
-      for (var doc in snapshot.docs) {
+      for (var doc in docs) {
         try {
           appointments.add(Appointment.fromFirestore(doc));
         } catch (e) {
@@ -235,7 +299,6 @@ class FirestoreService {
       // 2. Filter by status (if provided)
       if (status != null) {
         if (status == 'upcoming_pseudo') {
-          // Special pseudo-status for "Upcoming" tab: ONLY Confirmed appointments in the future
           appointments = appointments.where((a) =>
             a.dateTime.isAfter(now) &&
             a.status == AppConstants.appointmentConfirmed
@@ -245,7 +308,7 @@ class FirestoreService {
         }
       }
 
-      // 3. Filter by "Upcoming Only" flag if set (alternative way)
+      // 3. Filter by "Upcoming Only" flag if set
       if (upcomingOnly == true) {
         appointments = appointments.where((a) => a.dateTime.isAfter(now)).toList();
       }
@@ -255,7 +318,6 @@ class FirestoreService {
         final patient = await getPatient(appointment.patientId);
         
         if (patient != null) {
-          // Helper to check for generic names
           bool isGeneric(String? name) {
             if (name == null || name.trim().isEmpty) return true;
             final low = name.trim().toLowerCase();
@@ -287,7 +349,6 @@ class FirestoreService {
 
       debugPrint('✅ Returned ${appointments.length} appointments after filtering');
       return appointments;
-    });
   }
 
   /// الحصول على مواعيد اليوم
@@ -296,17 +357,23 @@ class FirestoreService {
     final uniqueIds = doctorIds.toSet().toList();
     if (uniqueIds.isEmpty) return Stream.value([]);
 
-    return _firestore
+    final byDoctorId = _firestore
         .collection(AppConstants.appointmentsCollection)
         .where('doctorId', whereIn: uniqueIds)
-        .snapshots()
-        .asyncMap((snapshot) async {
+        .snapshots();
+
+    final byDoctorUserId = _firestore
+        .collection(AppConstants.appointmentsCollection)
+        .where('doctorUserId', whereIn: uniqueIds)
+        .snapshots();
+
+    return _mergeDualStream(byDoctorId, byDoctorUserId).asyncMap((allDocs) async {
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
       final appointments = <Appointment>[];
-      for (var doc in snapshot.docs) {
+      for (var doc in allDocs) {
         try {
           final appt = Appointment.fromFirestore(doc);
           if (appt.dateTime.isAfter(startOfDay) &&
@@ -741,17 +808,32 @@ class FirestoreService {
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-      final allAppointmentsSnapshot = await _firestore
+      // Query by BOTH doctorId and doctorUserId to catch all appointments
+      final byDoctorId = await _firestore
           .collection(AppConstants.appointmentsCollection)
           .where('doctorId', whereIn: uniqueIds)
           .get();
+      final byDoctorUserId = await _firestore
+          .collection(AppConstants.appointmentsCollection)
+          .where('doctorUserId', whereIn: uniqueIds)
+          .get();
+
+      // Deduplicate by document ID
+      final Map<String, dynamic> seen = {};
+      for (var doc in [...byDoctorId.docs, ...byDoctorUserId.docs]) {
+        seen[doc.id] = doc;
+      }
+      final allDocs = seen.values.toList();
+
+      // Fake a QuerySnapshot-like iterable from allDocs
+      final allAppointmentsSnapshot = allDocs;
 
       int todayPatientsCount = 0;
       int pendingCount = 0;
       int upcomingCount = 0;
       final patientIds = <String>{};
 
-      for (var doc in allAppointmentsSnapshot.docs) {
+      for (var doc in allAppointmentsSnapshot) {
         final data = doc.data();
         final status = data['status'] ?? '';
         final patientId = data['patientId'] ?? '';
@@ -795,15 +877,26 @@ class FirestoreService {
   }
 
   /// Real-time stream of pending appointment count for the nav badge
+  /// Queries by both doctorId and doctorUserId to catch all appointments
   Stream<int> getPendingAppointmentsCount(List<String> doctorIds) {
     final uniqueIds = doctorIds.toSet().toList();
     if (uniqueIds.isEmpty) return Stream.value(0);
-    return _firestore
+
+    final byDoctorId = _firestore
         .collection(AppConstants.appointmentsCollection)
         .where('doctorId', whereIn: uniqueIds)
         .where('status', isEqualTo: AppConstants.appointmentPending)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+        .snapshots();
+
+    final byDoctorUserId = _firestore
+        .collection(AppConstants.appointmentsCollection)
+        .where('doctorUserId', whereIn: uniqueIds)
+        .where('status', isEqualTo: AppConstants.appointmentPending)
+        .snapshots();
+
+    return _mergeDualStream(byDoctorId, byDoctorUserId).map((allDocs) {
+      return allDocs.map((d) => d.id).toSet().length;
+    });
   }
 
   /// الحصول على إحصائيات Dashboard والمواعيد في Stream واحد لتحسين الأداء
@@ -811,11 +904,17 @@ class FirestoreService {
     final uniqueIds = doctorIds.toSet().toList();
     if (uniqueIds.isEmpty) return Stream.value(DashboardData.empty());
 
-    return _firestore
+    final byDoctorId = _firestore
         .collection(AppConstants.appointmentsCollection)
         .where('doctorId', whereIn: uniqueIds)
-        .snapshots()
-        .asyncMap((snapshot) async {
+        .snapshots();
+
+    final byDoctorUserId = _firestore
+        .collection(AppConstants.appointmentsCollection)
+        .where('doctorUserId', whereIn: uniqueIds)
+        .snapshots();
+
+    return _mergeDualStream(byDoctorId, byDoctorUserId).asyncMap((allDocs) async {
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -826,9 +925,11 @@ class FirestoreService {
       final patientIds = <String>{};
       final todayAppts = <Appointment>[];
 
-      for (var doc in snapshot.docs) {
+      for (var doc in allDocs) {
         try {
-          final data = doc.data();
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) continue;
+          
           final status = data['status'] ?? '';
           final patientId = data['patientId'] ?? '';
           if (patientId.isNotEmpty) patientIds.add(patientId);
