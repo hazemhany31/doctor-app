@@ -55,7 +55,7 @@ dependencies:
   # Utilities
   intl: ^0.20.2  # For date formatting & Arabic support
   image_picker: ^1.0.7
-  file_picker: ^10.3.10
+  file_picker: ^11.0.2
   url_launcher: ^6.3.0
   shared_preferences: ^2.5.4
   firebase_messaging: ^16.1.3
