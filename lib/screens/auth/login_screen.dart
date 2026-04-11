@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:doctor_app/config/colors.dart';
 import 'package:doctor_app/services/auth_service.dart';
+import '../../widgets/animated_press_button.dart';
 
 /// شاشة تسجيل الدخول
 class LoginScreen extends StatefulWidget {
@@ -61,6 +62,73 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    final emailController = TextEditingController(text: _emailController.text.trim());
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('إعادة تعيين كلمة المرور'),
+          content: TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              hintText: 'أدخل بريدك الإلكتروني',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final email = emailController.text.trim();
+                if (email.isEmpty || !email.contains('@')) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('من فضلك أدخل بريد إلكتروني صحيح'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+                try {
+                  await _authService.sendPasswordResetEmail(email);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  String errorMessage = e.toString();
+                  if (errorMessage.startsWith('Exception: ')) {
+                    errorMessage = errorMessage.substring(11);
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(errorMessage),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
+              child: const Text('إرسال'),
+            ),
+          ],
+        );
+      },
+    );
+
+    emailController.dispose();
   }
 
   @override
@@ -183,9 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton(
-                        onPressed: () {
-                          // TODO: Implement forgot password
-                        },
+                        onPressed: _showForgotPasswordDialog,
                         child: Text('نسيت كلمة المرور؟'),
                       ),
                     ),
@@ -194,17 +260,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     // زر تسجيل الدخول
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
+                      child: AnimatedPressButton(
                         onPressed: _isLoading ? null : _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryBlue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                        backgroundColor: AppColors.primaryBlue,
                         child: _isLoading
-                            ? SizedBox(
+                            ? const SizedBox(
                                 width: 24,
                                 height: 24,
                                 child: CircularProgressIndicator(
@@ -212,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : Text(
+                            : const Text(
                                 'تسجيل الدخول',
                                 style: TextStyle(
                                   fontSize: 16,

@@ -8,6 +8,7 @@ import '../models/patient.dart';
 import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/dashboard_data.dart';
+import '../models/prescription_template.dart';
 
 /// خدمة Firestore للتعامل مع البيانات
 class FirestoreService {
@@ -26,13 +27,15 @@ class FirestoreService {
       final doc = await _firestore
           .collection(AppConstants.doctorsCollection)
           .doc(doctorId)
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 10));
 
       if (!doc.exists) return null;
       final doctor = Doctor.fromFirestore(doc);
       _doctorCache[doctorId] = doctor;
       return doctor;
     } catch (e) {
+      debugPrint('⚠️ Error fetching doctor ($doctorId): $e');
       return null;
     }
   }
@@ -251,7 +254,7 @@ class FirestoreService {
       controller.add(merged.values.toList());
     }
 
-    controller = StreamController<List<DocumentSnapshot>>(
+    controller = StreamController<List<DocumentSnapshot>>.broadcast(
       onListen: () {
         sub1 = s1.listen((snap) {
           cache1.clear();
@@ -306,6 +309,9 @@ class FirestoreService {
         } else {
           appointments = appointments.where((a) => a.status == status).toList();
         }
+      } else {
+        // If status is NULL (All tab), exclude cancelled appointments as requested
+        appointments = appointments.where((a) => a.status != AppConstants.appointmentCancelled).toList();
       }
 
       // 3. Filter by "Upcoming Only" flag if set
@@ -377,7 +383,8 @@ class FirestoreService {
         try {
           final appt = Appointment.fromFirestore(doc);
           if (appt.dateTime.isAfter(startOfDay) &&
-              appt.dateTime.isBefore(endOfDay.add(const Duration(seconds: 1)))) {
+              appt.dateTime.isBefore(endOfDay.add(const Duration(seconds: 1))) &&
+              appt.status != AppConstants.appointmentCancelled) {
             appointments.add(appt);
           }
         } catch (e) {
@@ -492,6 +499,63 @@ class FirestoreService {
     }
   }
 
+  /// إلغاء جميع المواعيد القادمة في يوم محدد من الأسبوع
+  Future<void> cancelAppointmentsOnDay({
+    required String doctorId,
+    required String doctorUserId,
+    required int targetWeekday,
+    required String reason,
+  }) async {
+    try {
+      final now = DateTime.now();
+      
+      // 1. جلب المواعيد القادمة (pending/confirmed)
+      // نبحث بـ doctorId و doctorUserId لضمان الشمولية
+      final List<QuerySnapshot> snapshots = await Future.wait([
+        _firestore
+            .collection(AppConstants.appointmentsCollection)
+            .where('doctorId', isEqualTo: doctorId)
+            .where('status', whereIn: [AppConstants.appointmentPending, AppConstants.appointmentConfirmed])
+            .get(),
+        _firestore
+            .collection(AppConstants.appointmentsCollection)
+            .where('doctorUserId', isEqualTo: doctorUserId)
+            .where('status', whereIn: [AppConstants.appointmentPending, AppConstants.appointmentConfirmed])
+            .get(),
+      ]);
+
+      // دمج وإزالة التكرار
+      final Map<String, Appointment> toCancel = {};
+      for (var snap in snapshots) {
+        for (var doc in snap.docs) {
+          try {
+            final appt = Appointment.fromFirestore(doc);
+            // فلترة المواعيد التي تقع في نفس اليوم من الأسبوع وتكون في المستقبل
+            if (appt.dateTime.isAfter(now) && appt.dateTime.weekday == targetWeekday) {
+              toCancel[appt.id] = appt;
+            }
+          } catch (e) {
+            debugPrint('⚠️ Error parsing appointment during bulk cancel: $e');
+          }
+        }
+      }
+
+      debugPrint('📅 Found ${toCancel.length} appointments to cancel for weekday $targetWeekday');
+
+      // 2. تحديث الحالات وإرسال التنبيهات
+      for (var appt in toCancel.values) {
+        await updateAppointmentStatus(
+          appt.id, 
+          AppConstants.appointmentCancelled, 
+          cancelReason: reason
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error in cancelAppointmentsOnDay: $e');
+      rethrow;
+    }
+  }
+
   /// إرسال إشعار للمريض عبر Firestore
   Future<void> _triggerPatientNotification({
     required String patientId,
@@ -522,6 +586,7 @@ class FirestoreService {
     List<Map<String, dynamic>>? prescriptions,
     DateTime? medicationReminderTime,
     String? doctorNotes,
+    String? status,
   }) async {
     final data = <String, dynamic>{
       'updatedAt': FieldValue.serverTimestamp(),
@@ -537,6 +602,9 @@ class FirestoreService {
     if (doctorNotes != null) {
       data['doctorNotes'] = doctorNotes;
     }
+    if (status != null) {
+      data['status'] = status;
+    }
 
     final docRef = _firestore.collection(AppConstants.appointmentsCollection).doc(appointmentId);
     await docRef.update(data);
@@ -550,16 +618,25 @@ class FirestoreService {
         final doctorName = apptData['doctorName']?.toString() ?? 'الطبيب';
 
         if (patientId.isNotEmpty) {
+          String title = 'تحديث في خطة العلاج';
           String body = 'قام د. $doctorName بتحديث تفاصيل موعدك';
-          if (prescriptions != null) {
+          String type = 'prescription_updated';
+
+          if (prescriptions != null && prescriptions.isNotEmpty) {
             body = 'قام د. $doctorName بإضافة وصفة طبية جديدة لموعدك';
+          }
+          
+          if (status == AppConstants.appointmentCompleted) {
+            title = 'اكتمل الموعد';
+            body = 'تم الانتهاء من موعدك مع د. $doctorName. الوصفة الطبية متاحة الآن.';
+            type = 'appointment_completed';
           }
 
           await _triggerPatientNotification(
             patientId: patientId,
-            title: 'تحديث في خطة العلاج',
+            title: title,
             body: body,
-            type: 'prescription_updated',
+            type: type,
             appointmentId: appointmentId,
           );
         }
@@ -567,7 +644,6 @@ class FirestoreService {
     } catch (e) {
       debugPrint('⚠️ Failed to trigger prescription notification: $e');
     }
-
   }
 
   /// الحصول على مواعيد المريض
@@ -732,12 +808,18 @@ class FirestoreService {
 
   /// إضافة سجل طبي جديد (نفس مسار المريض)
   Future<String> addMedicalRecord(String patientId, MedicalRecord record) async {
-    final docRef = await _firestore
-        .collection('users')
-        .doc(patientId)
-        .collection('medical_records')
-        .add(record.toMap());
-    return docRef.id;
+    try {
+      final docRef = await _firestore
+          .collection('users')
+          .doc(patientId)
+          .collection('medical_records')
+          .add(record.toMap())
+          .timeout(const Duration(seconds: 15));
+      return docRef.id;
+    } catch (e) {
+      debugPrint('❌ Error adding medical record: $e');
+      rethrow;
+    }
   }
 
   // ==================== Schedule ====================
@@ -759,10 +841,10 @@ class FirestoreService {
           .collection(AppConstants.doctorsCollection)
           .doc(doctorId);
 
-      final docSnapshot = await docRef.get();
+      final docSnapshot = await docRef.get().timeout(const Duration(seconds: 10));
 
       if (docSnapshot.exists) {
-        await docRef.update({'schedule': scheduleMap});
+        await docRef.update({'schedule': scheduleMap}).timeout(const Duration(seconds: 10));
         debugPrint('✅ Schedule updated via document ID');
       } else {
         // البحث بواسطة userId
@@ -770,7 +852,8 @@ class FirestoreService {
             .collection(AppConstants.doctorsCollection)
             .where('userId', isEqualTo: doctorId)
             .limit(1)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 10));
 
         if (doctorDocs.docs.isNotEmpty) {
           await doctorDocs.docs.first.reference.update({
@@ -846,7 +929,8 @@ class FirestoreService {
 
         if (apptDate != null &&
             apptDate.isAfter(startOfDay) &&
-            apptDate.isBefore(endOfDay.add(const Duration(seconds: 1)))) {
+            apptDate.isBefore(endOfDay.add(const Duration(seconds: 1))) &&
+            status != AppConstants.appointmentCancelled) {
           todayPatientsCount++;
         }
         if (status == AppConstants.appointmentPending) {
@@ -922,8 +1006,15 @@ class FirestoreService {
       int todayPatientsCount = 0;
       int pendingCount = 0;
       int upcomingCount = 0;
+      double dailyIncomeCount = 0.0;
       final patientIds = <String>{};
       final todayAppts = <Appointment>[];
+
+      Doctor? doctor;
+      if (uniqueIds.isNotEmpty) {
+        doctor = await getDoctor(uniqueIds.first);
+      }
+      final double fees = doctor?.clinicInfo.fees ?? 0.0;
 
       for (var doc in allDocs) {
         try {
@@ -940,14 +1031,25 @@ class FirestoreService {
           }
 
           if (apptDate != null) {
-            // Stats logic
-            if (apptDate.isAfter(startOfDay) &&
-                apptDate.isBefore(endOfDay.add(const Duration(seconds: 1)))) {
-              todayPatientsCount++;
-              
-              // Today's appointments collection
+            // Stats logic: Only count true "today" patients (non-cancelled)
+            final bool isToday = apptDate.isAfter(startOfDay) &&
+                                apptDate.isBefore(endOfDay.add(const Duration(seconds: 1)));
+            
+            if (isToday) {
+              if (status != AppConstants.appointmentCancelled) {
+                todayPatientsCount++;
+              }
+              if (status == AppConstants.appointmentCompleted || status == AppConstants.appointmentAccepted) {
+                dailyIncomeCount += fees;
+              }
+            }
+
+            // Dashboard list logic: Include if today OR pending, ALWAYS exclude if cancelled
+            if (status != AppConstants.appointmentCancelled && 
+                (isToday || status == AppConstants.appointmentPending)) {
               todayAppts.add(Appointment.fromFirestore(doc));
             }
+
             if (status == AppConstants.appointmentPending) {
               pendingCount++;
             }
@@ -961,12 +1063,19 @@ class FirestoreService {
         }
       }
 
-      // Parallel fetch patient details for TODAY'S appointments only (UI critical)
-      await Future.wait(todayAppts.map((appointment) async {
+      // Deduplicate by ID
+      final Map<String, Appointment> uniqueMap = {};
+      for (var a in todayAppts) {
+        uniqueMap[a.id] = a;
+      }
+      final List<Appointment> uniqueAppts = uniqueMap.values.toList();
+
+      // Parallel fetch patient details for the display list
+      await Future.wait(uniqueAppts.map((appointment) async {
         final patient = await getPatient(appointment.patientId);
         if (patient != null) {
-          final index = todayAppts.indexOf(appointment);
-          todayAppts[index] = appointment.copyWith(
+          final index = uniqueAppts.indexOf(appointment);
+          uniqueAppts[index] = appointment.copyWith(
             patientName: (appointment.patientName == null || appointment.patientName!.toLowerCase() == 'patient') 
                 ? patient.name 
                 : appointment.patientName,
@@ -977,14 +1086,23 @@ class FirestoreService {
         }
       }));
 
-      todayAppts.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      // Sort: Pending first, then by date (soonest/newest first)
+      uniqueAppts.sort((a, b) {
+        if (a.status == AppConstants.appointmentPending && b.status != AppConstants.appointmentPending) return -1;
+        if (a.status != AppConstants.appointmentPending && b.status == AppConstants.appointmentPending) return 1;
+        return a.dateTime.compareTo(b.dateTime);
+      });
+
+      // Limit to 5 for the dashboard
+      final displayAppts = uniqueAppts.take(5).toList();
 
       return DashboardData(
         todayPatients: todayPatientsCount,
         pendingAppointments: pendingCount,
         upcomingAppointments: upcomingCount,
         totalPatients: patientIds.length,
-        todayAppointments: todayAppts,
+        dailyIncome: dailyIncomeCount,
+        todayAppointments: displayAppts,
       );
     });
   }
@@ -992,12 +1110,12 @@ class FirestoreService {
   // ==================== Notifications ====================
 
   /// Stream للتبيهات الخاصة بالدكتور
-  Stream<QuerySnapshot> getNotificationsStream(String doctorId) {
+  Stream<QuerySnapshot> getNotificationsStream(String recipientId) {
+    // لا نستخدم orderBy لتجنب الحاجة لـ composite index
     return _firestore
         .collection('notifications')
-        .where('recipientId', isEqualTo: doctorId)
+        .where('recipientId', isEqualTo: recipientId)
         .where('status', isEqualTo: 'unread')
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
@@ -1007,5 +1125,53 @@ class FirestoreService {
         .collection('notifications')
         .doc(notificationId)
         .update({'status': 'read'});
+  }
+
+  // ==================== Prescription Templates ====================
+
+  /// الحصول على قائمة قوالب الوصفات الطبية الخاصة بالطبيب
+  Stream<List<PrescriptionTemplate>> getPrescriptionTemplates(String doctorId) {
+    return _firestore
+        .collection(AppConstants.doctorsCollection)
+        .doc(doctorId)
+        .collection('templates')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => PrescriptionTemplate.fromFirestore(doc))
+            .toList());
+  }
+
+  /// إضافة قالب جديد
+  Future<void> addPrescriptionTemplate(String doctorId, PrescriptionTemplate template) async {
+    final data = template.toMap();
+    data['createdAt'] = FieldValue.serverTimestamp();
+    await _firestore
+        .collection(AppConstants.doctorsCollection)
+        .doc(doctorId)
+        .collection('templates')
+        .add(data);
+  }
+
+  /// تحديث قالب موجود
+  Future<void> updatePrescriptionTemplate(String doctorId, PrescriptionTemplate template) async {
+    final data = template.toMap();
+    data.remove('createdAt');
+    await _firestore
+        .collection(AppConstants.doctorsCollection)
+        .doc(doctorId)
+        .collection('templates')
+        .doc(template.id)
+        .update(data);
+  }
+
+  /// حذف قالب
+  Future<void> deletePrescriptionTemplate(String doctorId, String templateId) async {
+    await _firestore
+        .collection(AppConstants.doctorsCollection)
+        .doc(doctorId)
+        .collection('templates')
+        .doc(templateId)
+        .delete();
   }
 }

@@ -49,6 +49,8 @@ app.*.map.json
 **/GoogleService-Info.plist
 **/key.properties
 **/*.jks
+android/build/
+*.db
 
 # Temporary analysis files
 analyze_output*.txt

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Chat {
   final String id;
   final String doctorId;
+  final String doctorUserId;
   final String doctorName;
   final String patientId;
   final String patientName;
@@ -18,6 +19,7 @@ class Chat {
   Chat({
     required this.id,
     required this.doctorId,
+    required this.doctorUserId,
     required this.doctorName,
     required this.patientId,
     required this.patientName,
@@ -40,6 +42,7 @@ class Chat {
     return Chat(
       id: id,
       doctorId: map['doctorId'] ?? '',
+      doctorUserId: map['doctorUserId'] ?? '',
       doctorName: map['doctorName'] ?? '',
       patientId: map['patientId'] ?? '',
       patientName: map['patientName'] ?? '',
@@ -56,6 +59,7 @@ class Chat {
   Map<String, dynamic> toMap() {
     return {
       'doctorId': doctorId,
+      'doctorUserId': doctorUserId,
       'doctorName': doctorName,
       'patientId': patientId,
       'patientName': patientName,
@@ -73,6 +77,7 @@ class Chat {
   Chat copyWith({
     String? id,
     String? doctorId,
+    String? doctorUserId,
     String? doctorName,
     String? patientId,
     String? patientName,
@@ -86,6 +91,7 @@ class Chat {
     return Chat(
       id: id ?? this.id,
       doctorId: doctorId ?? this.doctorId,
+      doctorUserId: doctorUserId ?? this.doctorUserId,
       doctorName: doctorName ?? this.doctorName,
       patientId: patientId ?? this.patientId,
       patientName: patientName ?? this.patientName,

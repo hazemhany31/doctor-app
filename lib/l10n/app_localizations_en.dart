@@ -137,6 +137,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dashTodayAppointments => 'Today\'s Appointments';
 
   @override
+  String get dashTodayAndNewAppointments => 'Today & New Bookings';
+
+  @override
   String get dashViewAll => 'View All';
 
   @override
@@ -149,10 +152,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dashRetryBtn => 'Retry';
 
   @override
-  String get dashNoAppointmentsTitle => 'No Appointments Today';
+  String get dashNoAppointmentsTitle => 'No Incoming Bookings';
 
   @override
-  String get dashNoAppointmentsSub => 'Quiet day, enjoy!';
+  String get dashNoAppointmentsSub =>
+      'There are no appointments today or new requests waiting for you.';
 
   @override
   String get dashErrorTitle => 'Error Loading Data';

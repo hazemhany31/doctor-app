@@ -5,7 +5,7 @@ import '../../config/colors.dart';
 import '../../models/doctor.dart';
 import '../../services/firestore_service.dart';
 import '../../services/auth_service.dart';
-import '../../services/app_notification_service.dart';
+import '../../services/push_notification_service.dart';
 import '../diagnostic_screen.dart';
 import '../setup/setup_doctor_profile_screen.dart';
 import '../settings/settings_screen.dart';
@@ -359,15 +359,31 @@ class ProfileScreenState extends State<ProfileScreen> {
         title: Localizations.localeOf(context).languageCode == 'ar' ? 'اختبار التنبيهات' : 'Test Notifications',
         subtitle: Localizations.localeOf(context).languageCode == 'ar' ? 'اضغط لإرسال تنبيه تجريبي لهاتفك' : 'Tap to send a test alert',
         onTap: () async {
+          final isAr = Localizations.localeOf(context).languageCode == 'ar';
+
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'جاري إرسال التنبيه...' : 'Sending test alert...')),
+            SnackBar(
+              content: Text(isAr ? 'جاري إرسال التنبيه...' : 'Sending test notification...'),
+              duration: const Duration(seconds: 2),
+            ),
           );
+
           try {
-            await AppNotificationService().showTestNotification();
+            // Direct local notification — instant, no server needed
+            await PushNotificationService().show(
+              isAr ? 'اختبار التنبيهات ✅' : 'Notification Test ✅',
+              isAr
+                  ? 'نظام التنبيهات يعمل بنجاح على جهازك!'
+                  : 'Notifications are working correctly!',
+            );
           } catch (e) {
+            debugPrint('❌ Test notification error: $e');
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                SnackBar(
+                  content: Text('Error: $e'),
+                  backgroundColor: AppColors.error,
+                ),
               );
             }
           }

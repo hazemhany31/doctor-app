@@ -7,6 +7,7 @@ import '../../services/firestore_service.dart';
 import '../../widgets/patient_card.dart';
 import 'patient_details_screen.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/shimmer_widgets.dart';
 
 /// شاشة قائمة المرضى
 class PatientsListScreen extends StatefulWidget {
@@ -77,14 +78,14 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
           // قائمة المرضى
           Expanded(
             child: _doctorId == null
-                ? Center(child: CircularProgressIndicator())
+                ? const ShimmerLoadingList()
                 : StreamBuilder<List<Patient>>(
                     stream: _firestoreService.getDoctorPatients(
                       [_doctorId!, _authService.currentUser!.uid],
                     ),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
+                        return const ShimmerLoadingList();
                       }
 
                       if (!snapshot.hasData || snapshot.data!.isEmpty) {

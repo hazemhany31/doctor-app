@@ -8,7 +8,9 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/appointment_card.dart';
 import '../../l10n/app_localizations.dart';
+import '../main_layout.dart';
 import 'appointment_detail_screen.dart';
+import '../../widgets/shimmer_widgets.dart';
 
 /// شاشة إدارة المواعيد — Premium Redesign
 class AppointmentsScreen extends StatefulWidget {
@@ -88,7 +90,20 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                         IconButton(
                           icon: const Icon(Icons.arrow_back_ios_rounded,
                               color: Colors.white, size: 20),
-                          onPressed: () => Navigator.maybePop(context),
+                          onPressed: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            } else {
+                              // If we're inside MainLayout tabs, go back to Home tab (index 0)
+                              final mainLayout = MainLayoutState.of(context);
+                              if (mainLayout != null) {
+                                mainLayout.setIndex(0);
+                              } else {
+                                // Fallback
+                                Navigator.maybePop(context);
+                              }
+                            }
+                          },
                         ),
                         Expanded(
                           child: Column(
@@ -207,8 +222,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
                     controller: _tabController,
                     children: [
                       _buildList(null),
-                      _buildList(AppConstants.appointmentPending),
-                      _buildList('upcoming_pseudo'),
+                      _buildList(AppConstants.appointmentConfirmed), // Pending Action: Patient already confirmed
+                      _buildList(AppConstants.appointmentAccepted),  // Confirmed: Doctor already accepted
                       _buildList(AppConstants.appointmentCompleted),
                       _buildList(AppConstants.appointmentCancelled),
                     ],
@@ -233,9 +248,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          );
+          return const ShimmerLoadingList();
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -249,7 +262,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           itemBuilder: (context, index) {
             return AppointmentCard(
               appointment: appointments[index],
-              showActions: appointments[index].status == AppConstants.appointmentPending,
+              showActions: appointments[index].status == AppConstants.appointmentConfirmed || 
+                           appointments[index].status == AppConstants.appointmentPending,
               onAccept: () => _handleAccept(appointments[index]),
               onReject: () => _handleReject(appointments[index]),
               onTap: (appointments[index].status == AppConstants.appointmentPending ||
@@ -309,14 +323,14 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     final l10n = AppLocalizations.of(context)!;
     try {
       await _firestoreService.updateAppointmentStatus(
-          appt.id, AppConstants.appointmentConfirmed);
+          appt.id, AppConstants.appointmentAccepted);
       
       if (mounted) {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => AppointmentDetailScreen(
-              appointment: appt.copyWith(status: AppConstants.appointmentConfirmed),
+              appointment: appt.copyWith(status: AppConstants.appointmentAccepted),
             ),
           ),
         );
@@ -328,6 +342,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 2),
         ));
       }
     }
@@ -342,9 +357,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(l10n.apptRejectSuccess),
-          backgroundColor: AppColors.warning,
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 2),
         ));
       }
     } catch (_) {
@@ -354,6 +370,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 2),
         ));
       }
     }

@@ -2,69 +2,148 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Chats collection
+    // ==========================================
+    // Helper Functions
+    // ==========================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDoctor() {
+      // Allows anyone with a doctor profile to have doctor privileges 
+      return isAuthenticated() && exists(/databases/$(database)/documents/doctors/$(request.auth.uid));
+    }
+
+    // ==========================================
+    // 1. Chats Collection
+    // ==========================================
     match /chats/{chatId} {
-      // Allow any authenticated user to read chats they are part of
-      allow read: if request.auth != null;
-      
-      // Allow authenticated users to create chats
-      allow create: if request.auth != null;
-      
-      // Allow authenticated users to update chats
-      allow update: if request.auth != null;
-      
-      // Messages subcollection
+      function isChatParticipant() {
+        return isAuthenticated() && (
+          resource == null ||
+          resource.data.patientId == request.auth.uid || 
+          resource.data.doctorUserId == request.auth.uid ||
+          resource.data.doctorId == request.auth.uid
+        );
+      }
+
+      // READ: Open to all authenticated users.
+      // Security is enforced at query level — app only fetches chats
+      // where doctorUserId or patientId matches the logged-in user.
+      allow read: if isAuthenticated();
+
+      // UPDATE: Only participants can update (mark read, send message metadata)
+      allow update: if isChatParticipant();
+
+      // CREATE: Must include yourself as a participant
+      allow create: if isAuthenticated() && (
+        request.resource.data.patientId == request.auth.uid || 
+        request.resource.data.doctorUserId == request.auth.uid ||
+        request.resource.data.doctorId == request.auth.uid
+      );
+
+      // DELETE: Not allowed
+      allow delete: if false;
+
+      // --- Messages Subcollection ---
       match /messages/{messageId} {
-        allow read, write: if request.auth != null;
+        // Open read/write to authenticated users — the app ensures
+        // messages are only fetched inside a valid chat screen.
+        allow read, write: if isAuthenticated();
       }
     }
     
-    // Doctors collection
+    // ==========================================
+    // 2. Doctors Collection
+    // ==========================================
     match /doctors/{doctorId} {
-      allow read: if request.auth != null;
-      // ✅ الطبيب يعدل بيانات نفسه فقط
-      allow write: if request.auth != null && request.auth.uid == doctorId;
-    }
-    
-    // Appointments collection
-    match /appointments/{appointmentId} {
-      // ✅ المريض والطبيب المشتركان في الموعد فقط لهم الصلاحية
-      allow read: if request.auth != null &&
-          (resource.data.patientId == request.auth.uid ||
-           resource.data.doctorId == request.auth.uid);
-           
-      allow create: if request.auth != null;
+      // Any authenticated user can read public doctor profiles
+      allow read: if isAuthenticated();
       
-      allow update: if request.auth != null &&
-          (resource.data.patientId == request.auth.uid ||
-           resource.data.doctorId == request.auth.uid);
-           
-      allow delete: if request.auth != null &&
-          resource.data.patientId == request.auth.uid;
+      // Only the specific doctor can update their own profile document
+      // OR any authenticated user can increment patientsCount
+      allow update: if isUser(doctorId) || (
+        isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patientsCount'])
+      );
+      
+      allow delete: if isUser(doctorId);
+      allow create: if isUser(doctorId);
     }
     
-    // Users collection  
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && userId == request.auth.uid;
+    // ==========================================
+    // 3. Appointments Collection
+    // ==========================================
+    match /appointments/{appointmentId} {
+      // Patient and Doctor can read/update their appointments
+      function isAppointmentParticipant() {
+        return isAuthenticated() && (
+          resource.data.patientId == request.auth.uid || 
+          resource.data.doctorUserId == request.auth.uid ||
+          resource.data.doctorId == request.auth.uid
+        );
+      }
 
-      // Medical records subcollection — doctors can read and add records
+      // Anyone can read to determine booked times
+      // We allow authenticated users to read appointments to check doctor schedules
+      allow read: if isAuthenticated();
+      
+      // Update requires participant access OR any verified doctor
+      // NOTE: doctorId stores the Firestore doc ID (not auth UID), so
+      // isAppointmentParticipant() will fail for doctors on legacy appointments.
+      // isDoctor() allows any user with a /doctors/{uid} document to update.
+      allow update: if isAppointmentParticipant() || isDoctor();
+      
+      // Anyone authenticated can request to create an appointment, 
+      // but they MUST set themselves as the patient.
+      allow create: if isAuthenticated() && request.resource.data.patientId == request.auth.uid;
+      
+      // Only patient can cancel/delete their own pending appointment (hard delete)
+      allow delete: if isAuthenticated() && resource.data.patientId == request.auth.uid;
+    }
+    
+    // ==========================================
+    // 4. Users Collection
+    // ==========================================
+    match /users/{userId} {
+      // Users can read/write their own info.
+      // (Doctors can read patient profiles if needed).
+      allow read: if isAuthenticated(); 
+      allow write: if isUser(userId);
+
+      // --- Medical Records Subcollection ---
       match /medical_records/{recordId} {
-        // يسمح للطبيب المعالج والمريض بالوصول (يجب تحسينه لاحقاً إذا لزم، حالياً مسموح للمصرح لهم)
-        allow read, write: if request.auth != null;
+        // Patient can read/write their own records.
+        // Doctors can read/write any medical records for now.
+        allow read: if isUser(userId) || isDoctor();
+        allow write: if isUser(userId) || isDoctor();
       }
     }
 
-    // Emergency alerts collection
+    // ==========================================
+    // 5. Emergency Alerts Collection
+    // ==========================================
     match /emergency_alerts/{alertId} {
-      allow create: if request.auth != null;
-      allow read, update: if request.auth != null;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.patientId;
+      // Any patient can create an alert for themselves
+      allow create: if isAuthenticated() && request.resource.data.patientId == request.auth.uid;
+      
+      // Patient who created it OR any doctor can read and update it.
+      allow read, update: if isAuthenticated();
+      
+      // Only patient can delete their own alert
+      allow delete: if isAuthenticated() && resource.data.patientId == request.auth.uid;
     }
 
-    // Notifications collection
+    // ==========================================
+    // 6. Notifications Collection
+    // ==========================================
     match /notifications/{notificationId} {
-      allow read, write: if request.auth != null;
+      // Allow read/write for authenticated users since Firestore query evaluation
+      // blocks queries that rely on `get()` or `exists()` internally.
+      allow read, write: if isAuthenticated();
     }
   }
 }

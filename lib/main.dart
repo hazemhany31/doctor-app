@@ -1,7 +1,10 @@
 
 
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'firebase_options.dart';
 import 'package:flutter/foundation.dart';
@@ -12,24 +15,45 @@ import 'services/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
-import 'services/local_notification_service.dart';
+import 'services/push_notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 
 void main() async {
-  try {
+  // Global error handling via runZonedGuarded
+  runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+
+      if (!kIsWeb) {
+        // Pass all uncaught "fatal" errors from the framework to Crashlytics
+        FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+        // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          return true;
+        };
+      }
+
+      // Initialize App Check (protects Firestore / Storage from unauthorized access)
+      // await FirebaseAppCheck.instance.activate(
+      //   // ignore: deprecated_member_use
+      //   androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      //   // ignore: deprecated_member_use
+      //   appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      // );
+
     } on FirebaseException catch (e) {
       if (e.code != 'duplicate-app') rethrow;
       debugPrint('ℹ️ Firebase already initialized (native layer), continuing...');
     }
 
     if (!kIsWeb) {
-      await LocalNotificationService().init();
+      await PushNotificationService().initialize(null);
     }
 
     firestore.FirebaseFirestore.instance.settings = const firestore.Settings(
@@ -43,10 +67,12 @@ void main() async {
         child: const DoctorApp(),
       ),
     );
-  } catch (e, stackTrace) {
-    debugPrint('❌ FATAL ERROR during initialization: $e');
-    debugPrint('Stack trace: $stackTrace');
-    // Show error screen
+  }, (error, stackTrace) {
+    debugPrint('❌ Uncaught Zoned Error: $error');
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordError(error, stackTrace, fatal: true);
+    }
+    // Only show the error screen in extremely fatal scenario
     runApp(
       MaterialApp(
         home: Scaffold(
@@ -56,19 +82,14 @@ void main() async {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error, size: 64, color: Colors.red),
-                  SizedBox(height: 16),
-                  Text(
-                    'App Initialization Error',
+                  const Icon(Icons.error, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'حدث خطأ غير متوقع',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Error: $e',
-                    style: TextStyle(fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
+                  const SizedBox(height: 16),
+                  Text('Error: $error', textAlign: TextAlign.center),
                 ],
               ),
             ),
@@ -76,7 +97,7 @@ void main() async {
         ),
       ),
     );
-  }
+  });
 }
 
 class DoctorApp extends StatelessWidget {
@@ -91,6 +112,8 @@ class DoctorApp extends StatelessWidget {
 
       // Theme
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
 
       // Localization
       localizationsDelegates: [

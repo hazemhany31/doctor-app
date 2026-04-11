@@ -43,18 +43,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
         if (doctor != null && mounted) {
           setState(() {
             _doctorId = doctor.id;
-            _chatsStream = _chatService.getDoctorChats(
-              [_doctorId!, FirebaseAuth.instance.currentUser!.uid],
-            ).asyncMap((chats) async {
+            _chatsStream = _chatService
+                .getDoctorChats(user.uid, doctor.id)
+                .asyncMap((chats) async {
               // Enrich each chat with patient details (Resilient)
               return await Future.wait(chats.map((chat) async {
                 final patient = await _firestoreService.getPatient(chat.patientId);
                 if (patient != null) {
                   return chat.copyWith(
-                    patientName: (chat.patientName.isEmpty || 
-                                 chat.patientName.toLowerCase() == 'patient' || 
-                                 chat.patientName == 'مريض') 
-                        ? patient.name 
+                    patientName: (chat.patientName.isEmpty ||
+                                 chat.patientName.toLowerCase() == 'patient' ||
+                                 chat.patientName == 'مريض')
+                        ? patient.name
                         : chat.patientName,
                     patientPhotoUrl: patient.photoUrl,
                   );

@@ -1,0 +1,7 @@
+[
+  {
+    "id": "TC001",
+    "title": "post sendnotification with valid payload",
+    "description": "Verify that sending a POST request to /sendNotification with a valid userId, title, body, and data results in a 200 success response and triggers the Cloud Function to send an FCM notification to the target user's tokens."
+  }
+]

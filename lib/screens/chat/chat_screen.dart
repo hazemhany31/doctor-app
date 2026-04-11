@@ -8,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../config/colors.dart';
 import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
+import '../patients/patient_details_screen.dart';
 
 /// شاشة المحادثة مع مريض
 class ChatScreen extends StatefulWidget {
@@ -29,6 +30,10 @@ class _ChatScreenState extends State<ChatScreen> {
   String _doctorName = '';
   late Stream<List<Message>> _messagesStream;
 
+  // Anti-spam variables
+  DateTime? _lastMessageTime;
+  int _rapidMessageCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -49,18 +54,47 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _doctorName.isEmpty) return;
+    if (text.isEmpty) return;
+    
+    // --- Anti-Spam Check ---
+    final now = DateTime.now();
+    if (_lastMessageTime != null) {
+      if (now.difference(_lastMessageTime!).inSeconds < 1) {
+        _rapidMessageCount++;
+        if (_rapidMessageCount >= 3) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('الرجاء الانتظار قليلاً لتجنب إرسال رسائل متكررة'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
+      } else {
+        _rapidMessageCount = 0;
+      }
+    }
+    _lastMessageTime = now;
+    // -----------------------
+    
+    _messageController.clear(); // Clear immediately for better UX
+    _scrollToBottom();
+    
+    final senderName = _doctorName.isNotEmpty 
+        ? _doctorName 
+        : (widget.chat.doctorName.isNotEmpty ? widget.chat.doctorName : 'طبيب');
 
     try {
       await _chatService.sendMessage(
         chatId: widget.chat.id,
         senderId: _currentUserId,
-        senderName: _doctorName,
+        senderName: senderName,
         senderType: 'doctor',
         text: text,
       );
 
-      _messageController.clear();
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
@@ -76,7 +110,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_scrollController.hasClients) {
       Future.delayed(const Duration(milliseconds: 100), () {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          0.0, // Because reversed list, latest messages are at the start
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -95,25 +129,63 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white.withValues(alpha: 0.3),
-              child: Text(
-                widget.chat.patientName.isNotEmpty
-                    ? widget.chat.patientName[0].toUpperCase()
-                    : 'M',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+        title: GestureDetector(
+          onTap: () async {
+            final navigator = Navigator.of(context);
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+            // Show loading indicator
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+            );
+            
+            try {
+              final patient = await _firestoreService.getPatient(widget.chat.patientId);
+              if (mounted) {
+                navigator.pop(); // Close loading
+                if (patient != null) {
+                  navigator.push(
+                    MaterialPageRoute(
+                      builder: (context) => PatientDetailsScreen(patient: patient),
+                    ),
+                  );
+                } else {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('لم يتم العثور على بيانات المريض')),
+                  );
+                }
+              }
+            } catch (e) {
+              if (mounted) {
+                navigator.pop(); // Close loading
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('حدث خطأ أثناء تحميل بيانات المريض')),
+                );
+              }
+            }
+          },
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
+                child: Text(
+                  widget.chat.patientName.isNotEmpty
+                      ? widget.chat.patientName[0].toUpperCase()
+                      : 'M',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(widget.chat.patientName),
-          ],
+              const SizedBox(width: 12),
+              Text(widget.chat.patientName),
+            ],
+          ),
         ),
         backgroundColor: AppColors.primaryBlue,
         foregroundColor: Colors.white,
@@ -148,21 +220,18 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
 
-                // التمرير لأسفل عند وصول رسالة جديدة
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                  reverse: true, // Auto scrolls to bottom natively
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isDoctor = message.senderType == 'doctor';
+                    // Since it's reversed, the "previous" chronological message is at index + 1
                     final showDate =
-                        index == 0 ||
-                        !_isSameDay(messages[index - 1].sentAt, message.sentAt);
+                        index == messages.length - 1 ||
+                        !_isSameDay(messages[index + 1].sentAt, message.sentAt);
 
                     return Column(
                       children: [

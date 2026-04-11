@@ -27,14 +27,28 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen>
   final _chatService = ChatService();
   final _firestoreService = FirestoreService();
 
+  int _previousTabIndex = 0;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(_handleTabSelection);
+  }
+
+  void _handleTabSelection() {
+    if (_tabController.index == 3) {
+      _openChat();
+      // Revert to the previous tab index to avoid showing an empty tab if chat is dismissed
+      _tabController.animateTo(_previousTabIndex);
+    } else {
+      _previousTabIndex = _tabController.index;
+    }
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
     super.dispose();
   }
@@ -49,6 +63,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen>
 
       final chat = await _chatService.getOrCreateChat(
         doctorId: doctor.id,
+        doctorUserId: user.uid,
         doctorName: doctor.name,
         patientId: widget.patient.id,
         patientName: widget.patient.name,
@@ -177,7 +192,7 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen>
             PatientAppointmentsTab(patientId: widget.patient.id),
             PatientMedicalRecordsTab(patientId: widget.patient.id),
             // ─── Chat Tab ───
-            _ChatTabView(onOpenChat: _openChat),
+            const _ChatTabView(),
           ],
         ),
       ),
@@ -203,10 +218,9 @@ class _PatientDetailsScreenState extends State<PatientDetailsScreen>
   }
 }
 
-/// تبويب الشات — زر يفتح المحادثة مباشرة
+/// تبويب الشات — واجهة انتظار خفيفة اثناء فتح المحادثة
 class _ChatTabView extends StatelessWidget {
-  final VoidCallback onOpenChat;
-  const _ChatTabView({required this.onOpenChat});
+  const _ChatTabView();
 
   @override
   Widget build(BuildContext context) {
@@ -214,51 +228,7 @@ class _ChatTabView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              gradient: AppColors.tealGradient,
-              shape: BoxShape.circle,
-              boxShadow: AppColors.cardShadow,
-            ),
-            child: const Icon(Icons.chat_bubble_rounded, size: 40, color: Colors.white),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Chat with Patient',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              fontFamily: 'Cairo',
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Send and receive messages directly',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              fontFamily: 'Cairo',
-            ),
-          ),
-          const SizedBox(height: 28),
-          ElevatedButton.icon(
-            onPressed: onOpenChat,
-            icon: const Icon(Icons.chat_rounded, size: 18),
-            label: const Text(
-              'Open Chat',
-              style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 15),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              elevation: 0,
-            ),
-          ),
+          const CircularProgressIndicator(),
         ],
       ),
     );

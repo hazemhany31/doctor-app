@@ -2,7 +2,7 @@
 /// ثوابت التطبيق
 class AppConstants {
   // App Info
-  static const String appName = 'تطبيق الدكتور';
+  static const String appName = 'NBIG Doctor';
   static const String appVersion = '1.0.0';
 
   // Firestore Collections
@@ -20,6 +20,7 @@ class AppConstants {
   // Appointment Status
   static const String appointmentPending = 'pending';
   static const String appointmentConfirmed = 'confirmed';
+  static const String appointmentAccepted = 'accepted';
   static const String appointmentCompleted = 'completed';
   static const String appointmentCancelled = 'cancelled';
 

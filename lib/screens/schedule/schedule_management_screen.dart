@@ -60,6 +60,7 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
               startTime: '09:00',
               endTime: '17:00',
               slotDuration: 30,
+              breakDuration: 0,
             );
           }
         }
@@ -74,7 +75,45 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // 1. Identify newly closed days to cancel upcoming appointments
+      final Map<String, int> weekdayMap = {
+        'monday': DateTime.monday,
+        'tuesday': DateTime.tuesday,
+        'wednesday': DateTime.wednesday,
+        'thursday': DateTime.thursday,
+        'friday': DateTime.friday,
+        'saturday': DateTime.saturday,
+        'sunday': DateTime.sunday,
+      };
+
+      final List<String> newlyClosedDays = [];
+      for (var dayKey in _schedule.keys) {
+        final wasAvailable = _doctor!.schedule[dayKey]?.isAvailable ?? false;
+        final isNowAvailable = _schedule[dayKey]?.isAvailable ?? false;
+        
+        if (wasAvailable && !isNowAvailable) {
+          newlyClosedDays.add(dayKey);
+        }
+      }
+
+      // 2. Update the doctor document
       await _firestoreService.updateDoctorSchedule(_doctor!.id, _schedule);
+
+      // 3. Process cancellations if any days were closed
+      if (newlyClosedDays.isNotEmpty) {
+        debugPrint('📅 Processing bulk cancellations for: $newlyClosedDays');
+        for (var dayKey in newlyClosedDays) {
+          final weekday = weekdayMap[dayKey];
+          if (weekday != null) {
+            await _firestoreService.cancelAppointmentsOnDay(
+              doctorId: _doctor!.id,
+              doctorUserId: _doctor!.userId,
+              targetWeekday: weekday,
+              reason: 'تم إلغاء المواعيد لأن الطبيب لم يعد يستقبل حجوزات في هذا اليوم من الأسبوع.',
+            );
+          }
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -83,7 +122,9 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Text('Schedule saved successfully'),
+                Text(newlyClosedDays.isNotEmpty 
+                  ? 'Schedule saved and affected appointments cancelled'
+                  : 'Schedule saved successfully'),
               ],
             ),
             backgroundColor: AppColors.success,
@@ -94,6 +135,10 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
           ),
         );
       }
+      
+      // Update local doctor data to reflect saved state for future checks
+      _loadDoctorData();
+      
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -366,6 +411,7 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
                         startTime: schedule.startTime ?? '09:00',
                         endTime: schedule.endTime ?? '17:00',
                         slotDuration: schedule.slotDuration ?? 30,
+                        breakDuration: schedule.breakDuration ?? 0,
                       );
                     });
                   },
@@ -403,6 +449,7 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
                                   startTime: _formatTimeOfDay(picked),
                                   endTime: schedule.endTime,
                                   slotDuration: schedule.slotDuration,
+                                  breakDuration: schedule.breakDuration,
                                 );
                               });
                             }
@@ -428,6 +475,7 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
                                   startTime: schedule.startTime,
                                   endTime: _formatTimeOfDay(picked),
                                   slotDuration: schedule.slotDuration,
+                                  breakDuration: schedule.breakDuration,
                                 );
                               });
                             }
@@ -439,6 +487,9 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
                   SizedBox(height: 12),
                   // مدة الكشف
                   _buildSlotDurationSelector(schedule, dayKey),
+                  SizedBox(height: 12),
+                  // مدة الاستراحة
+                  _buildBreakDurationSelector(schedule, dayKey),
                 ],
               ),
             ),
@@ -526,6 +577,7 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
                       startTime: schedule.startTime,
                       endTime: schedule.endTime,
                       slotDuration: d,
+                      breakDuration: schedule.breakDuration,
                     );
                   });
                 },
@@ -541,6 +593,75 @@ class _ScheduleManagementScreenState extends State<ScheduleManagementScreen> {
                     border: Border.all(
                       color: isSelected
                           ? AppColors.primaryBlue
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$d min',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBreakDurationSelector(DaySchedule schedule, String dayKey) {
+    final durations = [0, 5, 10, 15, 30];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Break Duration',
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(height: 8),
+        Row(
+          children: durations.map((d) {
+            final isSelected = (schedule.breakDuration ?? 0) == d;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _schedule[dayKey] = DaySchedule(
+                      isAvailable: true,
+                      startTime: schedule.startTime,
+                      endTime: schedule.endTime,
+                      slotDuration: schedule.slotDuration,
+                      breakDuration: d,
+                    );
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: Duration(milliseconds: 200),
+                  margin: EdgeInsets.symmetric(horizontal: 3),
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.orange.shade500
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.orange.shade500
                           : Colors.grey.shade300,
                     ),
                   ),

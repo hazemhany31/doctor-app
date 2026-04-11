@@ -198,12 +198,14 @@ class DaySchedule {
   final String? startTime; // Format: "09:00"
   final String? endTime; // Format: "17:00"
   final int? slotDuration; // في الدقائق
+  final int? breakDuration; // استراحة بين المواعيد في الدقائق
 
   DaySchedule({
     required this.isAvailable,
     this.startTime,
     this.endTime,
     this.slotDuration,
+    this.breakDuration,
   });
 
   factory DaySchedule.fromMap(Map<String, dynamic> map) {
@@ -212,6 +214,7 @@ class DaySchedule {
       startTime: map['startTime'],
       endTime: map['endTime'],
       slotDuration: map['slotDuration'],
+      breakDuration: map['breakDuration'],
     );
   }
 
@@ -221,6 +224,7 @@ class DaySchedule {
       'startTime': startTime,
       'endTime': endTime,
       'slotDuration': slotDuration,
+      'breakDuration': breakDuration,
     };
   }
 }

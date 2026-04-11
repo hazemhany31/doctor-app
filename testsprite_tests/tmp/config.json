@@ -1,0 +1,19 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "diff",
+  "localEndpoint": "http://localhost:5173",
+  "backendAuthType": "public",
+  "executionArgs": {
+    "projectName": "doctor_app",
+    "projectPath": "/Users/hazemhany/project/doctor_app",
+    "testIds": [],
+    "additionalInstruction": "Run backend diff-focused checks and include execution timing/performance notes.",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-nYfVJehXJJBPNZ_mCjf8y3M1LaGpnt_R3eaMMqqTzTtjHIWcyBh3p8L4uacdvWw9W8LbZYA6a8cmTN77xqLxlOxxv1m-WL16vxSOZDve04BqvCmGNkQY4pFIZ9JjXlKIFFk"
+    }
+  },
+  "serverPort": 55834,
+  "proxy": "http://598fb81e-17c3-40a4-8f25-d994f13b16e0:IW5H74cs3HA9hCqOZfQrwbuMYjq2ipv8@tun.testsprite.com:8080"
+}

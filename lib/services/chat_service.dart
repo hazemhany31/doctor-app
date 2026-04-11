@@ -1,6 +1,5 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
-
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat.dart';
 import '../models/message.dart';
@@ -9,45 +8,88 @@ import '../models/message.dart';
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// جلب جميع محادثات الدكتور
-  Stream<List<Chat>> getDoctorChats(List<String> doctorIds) {
-    // Ensure unique IDs
-    final uniqueIds = doctorIds.toSet().toList();
-    if (uniqueIds.isEmpty) return Stream.value([]);
+  /// دمج stream'ين من Firestore مع إزالة التكرار بالـ ID
+  Stream<List<Chat>> _mergeChatsStreams(
+    Stream<QuerySnapshot> s1,
+    Stream<QuerySnapshot> s2,
+  ) {
+    StreamSubscription<QuerySnapshot>? sub1;
+    StreamSubscription<QuerySnapshot>? sub2;
+    final Map<String, Chat> cache1 = {};
+    final Map<String, Chat> cache2 = {};
 
-    return _firestore
-        .collection('chats')
-        .where('doctorId', whereIn: uniqueIds)
-        .snapshots()
-        .map((snapshot) {
-          final chats = snapshot.docs
-              .map((doc) => Chat.fromFirestore(doc))
-              .toList();
+    late final StreamController<List<Chat>> controller;
 
-          debugPrint('✅ Parsed ${chats.length} chats');
-          for (var chat in chats) {
-            debugPrint('  💬 Chat with ${chat.patientName}');
-            debugPrint('     Last message: ${chat.lastMessage}');
-            debugPrint('     Unread count: ${chat.unreadCountDoctor}');
+    void emit() {
+      if (controller.isClosed) return;
+      final merged = <String, Chat>{};
+      merged.addAll(cache1);
+      merged.addAll(cache2);
+      final chats = merged.values.toList();
+      chats.sort((a, b) {
+        final aTime = a.lastMessageTime ?? DateTime(2000);
+        final bTime = b.lastMessageTime ?? DateTime(2000);
+        return bTime.compareTo(aTime);
+      });
+      controller.add(chats);
+    }
+
+    controller = StreamController<List<Chat>>.broadcast(
+      onListen: () {
+        sub1 = s1.listen((snap) {
+          cache1.clear();
+          for (var doc in snap.docs) {
+            try { cache1[doc.id] = Chat.fromFirestore(doc); } catch(_) {}
           }
-
-          // ترتيب المحادثات حسب آخر رسالة (الأحدث أولاً)
-          chats.sort((a, b) {
-            final aTime = a.lastMessageTime ?? DateTime(2000);
-            final bTime = b.lastMessageTime ?? DateTime(2000);
-            return bTime.compareTo(aTime);
-          });
-          return chats;
+          emit();
+        }, onError: (e) {
+          if (!controller.isClosed) controller.addError(e);
         });
+        sub2 = s2.listen((snap) {
+          cache2.clear();
+          for (var doc in snap.docs) {
+            try { cache2[doc.id] = Chat.fromFirestore(doc); } catch(_) {}
+          }
+          emit();
+        }, onError: (e) {
+          if (!controller.isClosed) controller.addError(e);
+        });
+      },
+      onCancel: () {
+        sub1?.cancel();
+        sub2?.cancel();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  /// جلب جميع محادثات الدكتور
+  /// يبحث بـ doctorUserId (Auth UID) أساساً، ثم بـ doctorId كـ fallback للشاتات القديمة
+  Stream<List<Chat>> getDoctorChats(String doctorAuthUid, String doctorFirestoreId) {
+    // Stream 1: بـ doctorUserId (Auth UID) — الطريقة الصحيحة الجديدة
+    final byUserId = _firestore
+        .collection('chats')
+        .where('doctorUserId', isEqualTo: doctorAuthUid)
+        .snapshots();
+
+    // Stream 2: بـ doctorId (Firestore profile ID) — للشاتات القديمة
+    final byDocId = _firestore
+        .collection('chats')
+        .where('doctorId', isEqualTo: doctorFirestoreId)
+        .snapshots();
+
+    return _mergeChatsStreams(byUserId, byDocId);
   }
 
   /// جلب رسائل محادثة معينة
-  Stream<List<Message>> getChatMessages(String chatId) {
+  Stream<List<Message>> getChatMessages(String chatId, {int limit = 50}) {
     return _firestore
         .collection('chats')
         .doc(chatId)
         .collection('messages')
-        .orderBy('sentAt', descending: false)
+        .orderBy('sentAt', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
           final messages = snapshot.docs
@@ -84,27 +126,26 @@ class ChatService {
           .collection('messages')
           .add(message.toMap());
 
-      // تحديث آخر رسالة وعدد الرسائل غير المقروءة
+      // تحديث آخر رسالة وعدد الرسائل غير المقروءة باستخدام merge لتجنب الفشل الصامت
       final chatRef = _firestore.collection('chats').doc(chatId);
-      final chatDoc = await chatRef.get();
+      final updates = <String, dynamic>{
+        'lastMessage': text,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+      };
 
-      if (chatDoc.exists) {
-        final updates = {
-          'lastMessage': text,
-          'lastMessageTime': Timestamp.fromDate(DateTime.now()),
-        };
+      // زيادة عدد الرسائل غير المقروءة للطرف الآخر
+      if (senderType == 'doctor') {
+        updates['unreadCountPatient'] = FieldValue.increment(1);
+      } else {
+        updates['unreadCountDoctor'] = FieldValue.increment(1);
+      }
 
-        // زيادة عدد الرسائل غير المقروءة للطرف الآخر
-        if (senderType == 'doctor') {
-          updates['unreadCountPatient'] = FieldValue.increment(1);
-        } else {
-          updates['unreadCountDoctor'] = FieldValue.increment(1);
-        }
+      await chatRef.set(updates, SetOptions(merge: true));
 
-        await chatRef.update(updates);
-
-        // Trigger notification for the patient if sender is doctor
-        if (senderType == 'doctor') {
+      // Trigger notification for the patient if sender is doctor
+      if (senderType == 'doctor') {
+        final chatDoc = await chatRef.get();
+        if (chatDoc.exists) {
           final patientId = chatDoc.data()?['patientId'] ?? '';
           await _triggerPatientNotification(
             chatId: chatId,
@@ -115,7 +156,6 @@ class ChatService {
         }
       }
     } catch (e) {
-
       debugPrint('❌ خطأ في إرسال الرسالة: $e');
       rethrow;
     }
@@ -151,23 +191,14 @@ class ChatService {
   }
 
   /// جلب إجمالي عدد الرسائل غير المقروءة للدكتور
-  Stream<int> getTotalUnreadCount(List<String> doctorIds) {
-    // Ensure unique IDs
-    final uniqueIds = doctorIds.toSet().toList();
-    if (uniqueIds.isEmpty) return Stream.value(0);
-
-    return _firestore
-        .collection('chats')
-        .where('doctorId', whereIn: uniqueIds)
-        .snapshots()
-        .map((snapshot) {
-          int total = 0;
-          for (var doc in snapshot.docs) {
-            final data = doc.data();
-            total += (data['unreadCountDoctor'] ?? 0) as int;
-          }
-          return total;
-        });
+  Stream<int> getTotalUnreadCount(String doctorAuthUid, String doctorFirestoreId) {
+    return getDoctorChats(doctorAuthUid, doctorFirestoreId).map((chats) {
+      int total = 0;
+      for (var chat in chats) {
+        total += chat.unreadCountDoctor;
+      }
+      return total;
+    });
   }
 
   /// جلب محادثة معينة
@@ -185,28 +216,52 @@ class ChatService {
   }
 
   /// جلب أو إنشاء محادثة بين دكتور ومريض
+  /// [doctorUserId] هو Firebase Auth UID بتاع الدكتور — ضروري للـ Security Rules
   Future<Chat> getOrCreateChat({
     required String doctorId,
+    required String doctorUserId,
     required String doctorName,
     required String patientId,
     required String patientName,
   }) async {
     try {
-      // البحث عن محادثة موجودة
-      final existing = await _firestore
+      // البحث عن محادثة موجودة — بـ doctorUserId أولاً (الأدق والأسرع)
+      final byUserId = await _firestore
+          .collection('chats')
+          .where('doctorUserId', isEqualTo: doctorUserId)
+          .where('patientId', isEqualTo: patientId)
+          .limit(1)
+          .get();
+
+      if (byUserId.docs.isNotEmpty) {
+        // تحديث doctorId لو ناقص في الوثيقة القديمة
+        final existing = Chat.fromFirestore(byUserId.docs.first);
+        if (existing.doctorId.isEmpty) {
+          await byUserId.docs.first.reference.update({'doctorId': doctorId});
+        }
+        return existing;
+      }
+
+      // بحث ثانوي بـ doctorId للشاتات القديمة (قبل إضافة doctorUserId)
+      final byDocId = await _firestore
           .collection('chats')
           .where('doctorId', isEqualTo: doctorId)
           .where('patientId', isEqualTo: patientId)
           .limit(1)
           .get();
 
-      if (existing.docs.isNotEmpty) {
-        return Chat.fromFirestore(existing.docs.first);
+      if (byDocId.docs.isNotEmpty) {
+        // رفّع الوثيقة القديمة بإضافة doctorUserId
+        await byDocId.docs.first.reference
+            .update({'doctorUserId': doctorUserId}, );
+        final updated = await byDocId.docs.first.reference.get();
+        return Chat.fromFirestore(updated);
       }
 
-      // إنشاء محادثة جديدة
+      // إنشاء محادثة جديدة مع كل الحقول المطلوبة
       final newChatRef = await _firestore.collection('chats').add({
         'doctorId': doctorId,
+        'doctorUserId': doctorUserId,
         'doctorName': doctorName,
         'patientId': patientId,
         'patientName': patientName,

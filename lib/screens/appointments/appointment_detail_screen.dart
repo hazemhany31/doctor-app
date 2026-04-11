@@ -7,6 +7,14 @@ import '../../services/firestore_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../config/constants.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:share_plus/share_plus.dart';
+import '../../models/prescription_template.dart';
+import '../../services/auth_service.dart';
 
 /// شاشة تفاصيل الموعد — الدكتور يشوف تقرير المريض ويكتب الوصفة ويضبط التنبيه
 class AppointmentDetailScreen extends StatefulWidget {
@@ -144,6 +152,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
         doctorNotes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
+        status: AppConstants.appointmentCompleted,
       );
 
       if (mounted) {
@@ -154,6 +163,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
             behavior: SnackBarBehavior.floating,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 2),
           ),
         );
         Navigator.pop(context);
@@ -167,12 +177,153 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
             behavior: SnackBarBehavior.floating,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _showTemplatePicker() async {
+    final user = AuthService().currentUser;
+    if (user == null) return;
+    final doctor = await _firestoreService.getDoctorByUserId(user.uid);
+    if (doctor == null) return;
+
+    final templatesSnapshot = await FirebaseFirestore.instance
+        .collection(AppConstants.doctorsCollection)
+        .doc(doctor.id)
+        .collection('templates')
+        .get();
+
+    final templates = templatesSnapshot.docs
+        .map((d) => PrescriptionTemplate.fromFirestore(d))
+        .toList();
+
+    if (templates.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا توجد قوالب محفوظة. يمكنك إنشاؤها من لوحة التحكم.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: templates.length,
+          itemBuilder: (context, index) {
+            final t = templates[index];
+            return ListTile(
+              leading: const Icon(Icons.description, color: AppColors.primary),
+              title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+              subtitle: Text('${t.medicines.length} أدوية', style: const TextStyle(fontFamily: 'Cairo')),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  for (var med in t.medicines) {
+                    _medicines.add(_MedicineEntry(
+                      nameController: TextEditingController(text: med.name),
+                      dosageController: TextEditingController(text: med.dosage),
+                      frequencyController: TextEditingController(text: med.frequency),
+                      durationController: TextEditingController(text: med.duration),
+                      hoursController: TextEditingController(),
+                    ));
+                  }
+                });
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _exportPdf() async {
+    final appt = widget.appointment;
+    final pdf = pw.Document();
+
+    final font = await PdfGoogleFonts.cairoRegular();
+    final boldFont = await PdfGoogleFonts.cairoBold();
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        theme: pw.ThemeData.withFont(
+          base: font,
+          bold: boldFont,
+        ),
+        build: (pw.Context context) {
+          return pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Header(
+                  level: 0,
+                  child: pw.Text('الوصفة الطبية (Prescription)', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('الطبيب: ${appt.doctorName ?? ''}', style: const pw.TextStyle(fontSize: 16)),
+                    pw.Text('التاريخ: ${DateFormat('yyyy-MM-dd').format(appt.dateTime)}', style: const pw.TextStyle(fontSize: 14)),
+                  ]
+                ),
+                pw.Text('المريض: ${appt.patientName ?? ''}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                pw.Divider(),
+                pw.SizedBox(height: 10),
+                pw.Text('الأدوية:', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.blue600)),
+                pw.SizedBox(height: 10),
+                ..._medicines.map((m) {
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 15, right: 10),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('- ${m.nameController.text}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                        pw.Text('  الجرعة: ${m.dosageController.text}', style: const pw.TextStyle(fontSize: 14)),
+                        pw.Text('  التكرار: ${m.frequencyController.text}', style: const pw.TextStyle(fontSize: 14)),
+                        pw.Text('  المدة: ${m.durationController.text}', style: const pw.TextStyle(fontSize: 14)),
+                      ]
+                    )
+                  );
+                }),
+                if (_notesController.text.isNotEmpty) ...[
+                  pw.SizedBox(height: 20),
+                  pw.Divider(),
+                  pw.Text('ملاحظات:', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue600)),
+                  pw.Text(_notesController.text, style: const pw.TextStyle(fontSize: 14)),
+                ]
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    final output = await getTemporaryDirectory();
+    final file = File('${output.path}/prescription_${appt.id}.pdf');
+    await file.writeAsBytes(await pdf.save());
+
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path)],
+        text: 'الوصفة الطبية الخاصة بك المرفقة كملف PDF.',
+      ),
+    );
   }
 
   @override
@@ -321,6 +472,23 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                       ),
                       const Spacer(),
                       TextButton.icon(
+                        onPressed: _showTemplatePicker,
+                        icon: const Icon(Icons.file_copy_rounded, size: 16),
+                        label: const Text('قالب'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF6366F1),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(
+                            fontFamily: 'Cairo',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
                         onPressed: _addMedicine,
                         icon: const Icon(Icons.add_circle_rounded, size: 18),
                         label: Text(l10n.apptDetailAddMedicine),
@@ -439,6 +607,31 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 12),
+
+                  // ─── Export PDF Button ───
+                  if (appt.status == AppConstants.appointmentCompleted || _medicines.isNotEmpty)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: _exportPdf,
+                        icon: const Icon(Icons.picture_as_pdf_rounded),
+                        label: const Text('المشاركة كملف PDF'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent, width: 2),
+                          textStyle: const TextStyle(
+                            fontFamily: 'Cairo',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
 
                   const SizedBox(height: 100),
                 ],

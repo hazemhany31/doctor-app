@@ -338,6 +338,12 @@ abstract class AppLocalizations {
   /// **'Today\'s Appointments'**
   String get dashTodayAppointments;
 
+  /// No description provided for @dashTodayAndNewAppointments.
+  ///
+  /// In en, this message translates to:
+  /// **'Today & New Bookings'**
+  String get dashTodayAndNewAppointments;
+
   /// No description provided for @dashViewAll.
   ///
   /// In en, this message translates to:
@@ -365,13 +371,13 @@ abstract class AppLocalizations {
   /// No description provided for @dashNoAppointmentsTitle.
   ///
   /// In en, this message translates to:
-  /// **'No Appointments Today'**
+  /// **'No Incoming Bookings'**
   String get dashNoAppointmentsTitle;
 
   /// No description provided for @dashNoAppointmentsSub.
   ///
   /// In en, this message translates to:
-  /// **'Quiet day, enjoy!'**
+  /// **'There are no appointments today or new requests waiting for you.'**
   String get dashNoAppointmentsSub;
 
   /// No description provided for @dashErrorTitle.

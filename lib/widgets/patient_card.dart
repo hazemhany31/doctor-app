@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import '../config/colors.dart';
 import '../models/patient.dart';
+import '../config/animations.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 /// بطاقة المريض
 class PatientCard extends StatelessWidget {
@@ -132,6 +134,8 @@ class PatientCard extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ).animate()
+     .fadeIn(duration: AppAnimations.entrance, curve: AppAnimations.easeOut)
+     .slideX(begin: 0.1, end: 0, duration: AppAnimations.entrance, curve: AppAnimations.easeOut);
   }
 }

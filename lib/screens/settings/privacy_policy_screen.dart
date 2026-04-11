@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/colors.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
@@ -53,6 +54,26 @@ class PrivacyPolicyScreen extends StatelessWidget {
               content:
                   'نحتفظ ببياناتك طالما أن حسابك نشط. يمكنك طلب "حذف الحساب" نهائياً من إعدادات التطبيق وسيتم مسح كافة سجلاتك من النظام بالكامل.',
             ),
+            const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: () => _openPrivacyPolicyUrl(),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: const Text(
+                  'قراءة السياسة عبر الموقع',
+                  style: TextStyle(fontFamily: 'Cairo'),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  foregroundColor: AppColors.primary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 40),
             const Center(
               child: Text(
@@ -64,6 +85,17 @@ class PrivacyPolicyScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _openPrivacyPolicyUrl() async {
+    final uri = Uri.parse('https://nbig-doctor.web.app/privacy-policy');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error launching URL: $e');
+    }
   }
 
   Widget _buildSection({required String title, required String content}) {

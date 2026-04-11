@@ -16,18 +16,29 @@ import 'chat/chat_list_screen.dart';
 import 'patients/patients_list_screen.dart';
 import 'profile/profile_screen.dart';
 import '../services/app_notification_service.dart';
+import '../services/push_notification_service.dart';
 
 /// الشاشة الرئيسية مع Floating Pill Navigation
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
 
   @override
-  State<MainLayout> createState() => _MainLayoutState();
+  State<MainLayout> createState() => MainLayoutState();
 }
 
-class _MainLayoutState extends State<MainLayout>
+class MainLayoutState extends State<MainLayout>
     with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
+
+  static MainLayoutState? of(BuildContext context) {
+    return context.findAncestorStateOfType<MainLayoutState>();
+  }
+
+  void setIndex(int index) {
+    if (mounted) {
+      setState(() => _currentIndex = index);
+    }
+  }
   final ChatService _chatService = ChatService();
   final FirestoreService _firestoreService = FirestoreService();
   final EmergencyService _emergencyService = EmergencyService();
@@ -92,6 +103,11 @@ class _MainLayoutState extends State<MainLayout>
         _initializeOnlineStatus(doctor.id);
         _listenToEmergencies(doctor.id);
         AppNotificationService().startListening([user.uid, doctor.id]);
+
+        // طلب إذن الإشعارات بشكل احترافي مع شرح (Compliance)
+        if (mounted) {
+          PushNotificationService().requestPermission(context);
+        }
       } else if (mounted) {
         // Retry up to 3 times with increasing delay (connectivity might be initializing)
         if (retryCount < 3) {
@@ -323,18 +339,19 @@ class _MainLayoutState extends State<MainLayout>
           }
 
           if (index == 2) {
+            final currentUser = FirebaseAuth.instance.currentUser;
             iconWidget = StreamBuilder<int>(
-              stream: _doctorId != null &&
-                      FirebaseAuth.instance.currentUser != null
+              stream: _doctorId != null && currentUser != null
                   ? _chatService.getTotalUnreadCount(
-                      [_doctorId!, FirebaseAuth.instance.currentUser!.uid],
+                      currentUser.uid,
+                      _doctorId!,
                     )
                   : Stream.value(0),
               builder: (context, snapshot) {
                 final count = snapshot.data ?? 0;
                 return Badge(
                   label: count > 0
-                      ? Text('$count', style: TextStyle(fontSize: 10))
+                      ? Text('$count', style: const TextStyle(fontSize: 10))
                       : null,
                   isLabelVisible: count > 0,
                   backgroundColor: AppColors.accent,

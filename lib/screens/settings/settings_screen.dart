@@ -270,7 +270,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () async {
               Navigator.pop(ctx);
-              _performDeleteAccount(context);
+              _showReauthDialog(context); // 항상 كلمه السر اوالاً لضمان حداثة الجلسة (ALWAYS ask for password first)
             },
             child: Text('الموافقة والحذف', style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
           ),
@@ -279,16 +279,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _performDeleteAccount(BuildContext context) async {
+  Future<void> _performDeleteAccount(BuildContext context, {String? password}) async {
     // إظهار شاشة تحميل للانتظار
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => Center(child: CircularProgressIndicator()),
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
+      
+      // إذا كان هناك كلمة مرور، نقوم بإعادة المصادقة أولاً
+      if (password != null) {
+        await authService.reauthenticate(password);
+      }
+
       await authService.deleteAccount();
       
       // التخلص من شاشة الانتظار
@@ -304,15 +310,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (context.mounted) Navigator.pop(context);
       
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppColors.error,
-          ),
-        );
+      final errorMsg = e.toString();
+      if (errorMsg.contains('REQUIRES_REAUTH')) {
+        // إذا طلب النظام إعادة المصادقة، نظهر نافذة كلمة المرور
+        if (context.mounted) _showReauthDialog(context);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMsg.replaceAll('Exception: ', '')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       }
     }
+  }
+
+  void _showReauthDialog(BuildContext context) {
+    final passwordController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد الهوية', style: TextStyle(fontFamily: 'Cairo')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'لحذف الحساب، يرجى إدخال كلمة المرور الحالية لتأكيد هويتك.',
+              style: TextStyle(fontFamily: 'Cairo', fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'كلمة المرور',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () {
+              final pwd = passwordController.text.trim();
+              if (pwd.isEmpty) return;
+              Navigator.pop(ctx);
+              _performDeleteAccount(context, password: pwd);
+            },
+            child: const Text('تأكيد وحذف', style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSectionHeader(String title) {

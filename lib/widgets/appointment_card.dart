@@ -5,14 +5,17 @@ import '../config/colors.dart';
 import '../models/appointment.dart';
 import '../services/firestore_service.dart';
 import '../l10n/app_localizations.dart';
+import '../config/animations.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'animated_press_button.dart';
 
 /// بطاقة الموعد — Premium Glassmorphic Design
 class AppointmentCard extends StatefulWidget {
   final Appointment appointment;
-  final VoidCallback? onAccept;
-  final VoidCallback? onReject;
+  final Future<void> Function()? onAccept;
+  final Future<void> Function()? onReject;
   final VoidCallback? onTap;
-  final VoidCallback? onDelete;
+  final Future<void> Function()? onDelete;
   final bool showActions;
 
   const AppointmentCard({
@@ -31,17 +34,24 @@ class AppointmentCard extends StatefulWidget {
 
 class _AppointmentCardState extends State<AppointmentCard> {
   bool _isProcessing = false;
+  bool get isArabic => Localizations.localeOf(context).languageCode == 'ar';
 
-  void _handleAction(VoidCallback? action) {
-    if (action == null) return;
-    setState(() => _isProcessing = true);
-    action();
+
+  Future<void> _handleAction(Future<void> Function()? action) async {
+    if (action == null || _isProcessing) return;
+    if (mounted) setState(() => _isProcessing = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   Color _statusColor() {
     switch (widget.appointment.status) {
       case 'pending':   return AppColors.pendingColor;
-      case 'confirmed': return AppColors.confirmedColor;
+      case 'confirmed': return AppColors.pendingColor; // Consider patient-confirmed as awaiting doctor
+      case 'accepted':  return AppColors.confirmedColor;
       case 'completed': return AppColors.completedColor;
       case 'cancelled': return AppColors.cancelledColor;
       default:          return AppColors.textSecondary;
@@ -51,7 +61,8 @@ class _AppointmentCardState extends State<AppointmentCard> {
   IconData _statusIcon() {
     switch (widget.appointment.status) {
       case 'pending':   return Icons.hourglass_top_rounded;
-      case 'confirmed': return Icons.check_circle_rounded;
+      case 'confirmed': return Icons.warning_amber_rounded;
+      case 'accepted':  return Icons.check_circle_rounded;
       case 'completed': return Icons.task_alt_rounded;
       case 'cancelled': return Icons.cancel_rounded;
       default:          return Icons.help_outline_rounded;
@@ -61,8 +72,9 @@ class _AppointmentCardState extends State<AppointmentCard> {
   String _statusText(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     switch (widget.appointment.status) {
-      case 'pending':   return l10n.apptCardStatusPending;
-      case 'confirmed': return l10n.apptCardStatusConfirmed;
+      case 'pending':   return isArabic ? 'بانتظار تأكيد المريض' : 'Waiting for Patient';
+      case 'confirmed': return isArabic ? 'طلب جديد (بانتظار موافقتك)' : 'New Request (Awaiting Action)';
+      case 'accepted':  return l10n.apptCardStatusConfirmed;
       case 'completed': return l10n.apptCardStatusCompleted;
       case 'cancelled': return l10n.apptCardStatusCancelled;
       default:          return widget.appointment.status;
@@ -93,7 +105,7 @@ class _AppointmentCardState extends State<AppointmentCard> {
         .join()
         .toUpperCase();
 
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+
 
     return Dismissible(
       key: Key(widget.appointment.id),
@@ -166,6 +178,7 @@ class _AppointmentCardState extends State<AppointmentCard> {
                   backgroundColor: Colors.grey.shade800,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  duration: const Duration(seconds: 2),
                 ),
               );
             }
@@ -175,6 +188,7 @@ class _AppointmentCardState extends State<AppointmentCard> {
                 SnackBar(
                   content: Text(isArabic ? 'حدث خطأ أثناء الحذف' : 'Error deleting appointment'),
                   backgroundColor: AppColors.error,
+                  duration: const Duration(seconds: 2),
                 ),
               );
             }
@@ -377,80 +391,92 @@ class _AppointmentCardState extends State<AppointmentCard> {
                             ),
                           ],
                         ),
-                        if (widget.showActions && widget.appointment.status == 'pending') ...[
+                        if (widget.showActions && (widget.appointment.status == 'pending' || widget.appointment.status == 'confirmed')) ...[
                           const SizedBox(height: 14),
                           const Divider(height: 1, color: AppColors.border),
                           const SizedBox(height: 12),
                           Row(
                             children: [
                               Expanded(
-                                child: OutlinedButton.icon(
+                                child: AnimatedPressButton(
                                   onPressed: _isProcessing ? null : () => _handleAction(widget.onReject),
-                                  icon: _isProcessing 
-                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error))
-                                      : const Icon(Icons.close_rounded, size: 16),
-                                  label: Text(
-                                    l10n.apptCardStatusCancelled, 
-                                    style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.error,
-                                    side: BorderSide(color: AppColors.error.withValues(alpha: 0.4)),
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  backgroundColor: AppColors.error.withValues(alpha: 0.1),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _isProcessing 
+                                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error))
+                                          : const Icon(Icons.close_rounded, size: 14, color: AppColors.error),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        l10n.apptCardStatusCancelled, 
+                                        style: const TextStyle(
+                                          fontFamily: 'Cairo', 
+                                          fontWeight: FontWeight.w700, 
+                                          color: AppColors.error,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 12),
                               Expanded(
-                                flex: 2,
-                                child: ElevatedButton.icon(
+                                child: AnimatedPressButton(
                                   onPressed: _isProcessing ? null : () => _handleAction(widget.onAccept),
-                                  icon: _isProcessing
-                                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                    : const Icon(Icons.check_rounded, size: 16, color: Colors.white),
-                                  label: Text(
-                                    _isProcessing ? 'Processing...' : l10n.apptCardBtnAccept,
-                                    style: const TextStyle(
-                                      fontFamily: 'Cairo',
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.confirmedColor,
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    elevation: 3,
-                                    shadowColor: AppColors.confirmedColor.withValues(alpha: 0.4),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  backgroundColor: AppColors.confirmedColor,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _isProcessing
+                                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                        : const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _isProcessing ? '...' : l10n.apptCardBtnAccept,
+                                        style: const TextStyle(
+                                          fontFamily: 'Cairo',
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ] else if (widget.appointment.status == 'confirmed') ...[
+                        ] else if (widget.appointment.status == 'accepted' || widget.appointment.status == 'confirmed') ...[
                           const SizedBox(height: 14),
                           const Divider(height: 1, color: AppColors.border),
                           const SizedBox(height: 12),
                           Row(
                             children: [
                               Expanded(
-                                child: ElevatedButton.icon(
+                                child: AnimatedPressButton(
                                   onPressed: widget.onTap,
-                                  icon: const Icon(Icons.medication_rounded, size: 18, color: Colors.white),
-                                  label: const Text(
-                                    'Prescribe Medicene',
-                                    style: TextStyle(
-                                      fontFamily: 'Cairo',
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
+                                  backgroundColor: AppColors.primary,
+                                  child: Padding(
                                     padding: const EdgeInsets.symmetric(vertical: 12),
-                                    elevation: 2,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(Icons.medication_rounded, size: 18, color: Colors.white),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Prescribe Medicene',
+                                          style: TextStyle(
+                                            fontFamily: 'Cairo',
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -467,6 +493,8 @@ class _AppointmentCardState extends State<AppointmentCard> {
         ),
       ),
     ),
-  );
+  ).animate(key: ValueKey(widget.appointment.id))
+   .fadeIn(duration: AppAnimations.entrance, curve: AppAnimations.easeOut)
+   .slideY(begin: 0.05, end: 0, duration: AppAnimations.entrance, curve: AppAnimations.easeOut);
 }
 }

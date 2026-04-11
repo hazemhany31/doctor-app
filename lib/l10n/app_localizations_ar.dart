@@ -137,6 +137,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get dashTodayAppointments => 'مواعيد اليوم';
 
   @override
+  String get dashTodayAndNewAppointments => 'المواعيد الجديدة واليوم';
+
+  @override
   String get dashViewAll => 'عرض الكل';
 
   @override
@@ -149,10 +152,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get dashRetryBtn => 'إعادة المحاولة';
 
   @override
-  String get dashNoAppointmentsTitle => 'لا توجد مواعيد اليوم';
+  String get dashNoAppointmentsTitle => 'لا توجد مواعيد حالياً';
 
   @override
-  String get dashNoAppointmentsSub => 'يوم هادئ، استمتع!';
+  String get dashNoAppointmentsSub =>
+      'لا توجد مواعيد اليوم أو طلبات جديدة بانتظارك';
 
   @override
   String get dashErrorTitle => 'حدث خطأ في تحميل البيانات';

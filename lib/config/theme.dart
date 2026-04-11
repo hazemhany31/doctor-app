@@ -9,6 +9,14 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
+      
+      // Page Transitions - Smooth Navigation
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
 
       // Color Scheme
       colorScheme: ColorScheme.fromSeed(
@@ -201,6 +209,128 @@ class AppTheme {
 
       // Icon
       iconTheme: IconThemeData(color: AppColors.textSecondary, size: 22),
+    );
+  }
+
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      
+      // Page Transitions - Smooth Navigation
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+
+      // Color Scheme
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppColors.primaryLight,
+        primary: AppColors.primaryLight,
+        secondary: AppColors.secondaryTeal,
+        error: const Color(0xFFF87171), 
+        surface: const Color(0xFF1E293B),
+        brightness: Brightness.dark,
+      ),
+
+      // Scaffold Background
+      scaffoldBackgroundColor: const Color(0xFF0F172A),
+
+      // Typography — Cairo for Arabic (Dark mode colors)
+      textTheme: GoogleFonts.cairoTextTheme(ThemeData.dark().textTheme).copyWith(
+        headlineLarge: GoogleFonts.cairo(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white),
+        headlineMedium: GoogleFonts.cairo(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
+        headlineSmall: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
+        titleLarge: GoogleFonts.cairo(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+        titleMedium: GoogleFonts.cairo(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+        titleSmall: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFFCBD5E1)),
+        bodyLarge: GoogleFonts.cairo(fontSize: 16, color: Colors.white),
+        bodyMedium: GoogleFonts.cairo(fontSize: 14, color: const Color(0xFFE2E8F0)),
+        bodySmall: GoogleFonts.cairo(fontSize: 12, color: const Color(0xFF94A3B8)),
+      ),
+
+      // AppBar 
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        titleTextStyle: GoogleFonts.cairo(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+
+      // Card Theme
+      cardTheme: CardThemeData(
+        color: const Color(0xFF1E293B),
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF334155), width: 1),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+
+      // Elevated Button
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryLight,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: GoogleFonts.cairo(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+
+      // Input Decoration
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF1E293B),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF334155)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF334155)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFF87171)),
+        ),
+        labelStyle: GoogleFonts.cairo(
+          fontSize: 14,
+          color: const Color(0xFF94A3B8),
+        ),
+        hintStyle: GoogleFonts.cairo(fontSize: 14, color: const Color(0xFF64748B)),
+      ),
+
+      // Divider
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFF334155),
+        thickness: 1,
+        space: 1,
+      ),
+
+      iconTheme: const IconThemeData(color: Color(0xFF94A3B8), size: 22),
     );
   }
 }

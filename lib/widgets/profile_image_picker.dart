@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../config/colors.dart';
 import '../services/storage_service.dart';
+import '../utils/permission_helper.dart';
 
 /// Widget لاختيار ورفع صورة الملف الشخصي
 class ProfileImagePicker extends StatefulWidget {
@@ -35,6 +36,16 @@ class _ProfileImagePickerState extends State<ProfileImagePicker> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    // التحقق من الصلاحيات أولاً مع شرح مسبق للمستخدم (Compliance)
+    bool hasPermission = false;
+    if (source == ImageSource.camera) {
+      hasPermission = await PermissionHelper.requestCameraPermission(context);
+    } else {
+      hasPermission = await PermissionHelper.requestPhotosPermission(context);
+    }
+
+    if (!hasPermission) return;
+
     setState(() => _isLoading = true);
 
     try {

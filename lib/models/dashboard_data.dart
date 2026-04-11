@@ -6,6 +6,7 @@ class DashboardData {
   final int pendingAppointments;
   final int upcomingAppointments;
   final int totalPatients;
+  final double dailyIncome;
   final List<Appointment> todayAppointments;
 
   DashboardData({
@@ -13,6 +14,7 @@ class DashboardData {
     required this.pendingAppointments,
     required this.upcomingAppointments,
     required this.totalPatients,
+    required this.dailyIncome,
     required this.todayAppointments,
   });
 
@@ -21,6 +23,7 @@ class DashboardData {
     pendingAppointments: 0,
     upcomingAppointments: 0,
     totalPatients: 0,
+    dailyIncome: 0.0,
     todayAppointments: [],
   );
 
@@ -29,6 +32,7 @@ class DashboardData {
     int? pendingAppointments,
     int? upcomingAppointments,
     int? totalPatients,
+    double? dailyIncome,
     List<Appointment>? todayAppointments,
   }) {
     return DashboardData(
@@ -36,6 +40,7 @@ class DashboardData {
       pendingAppointments: pendingAppointments ?? this.pendingAppointments,
       upcomingAppointments: upcomingAppointments ?? this.upcomingAppointments,
       totalPatients: totalPatients ?? this.totalPatients,
+      dailyIncome: dailyIncome ?? this.dailyIncome,
       todayAppointments: todayAppointments ?? this.todayAppointments,
     );
   }

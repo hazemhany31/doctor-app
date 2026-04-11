@@ -1,0 +1,70 @@
+version: "2"
+type: backend
+tech_stack:
+  - Dart (Flutter)
+  - Firebase Functions (Node.js)
+  - Cloud Firestore
+  - Firebase Auth / Cloud Messaging / Local Notifications
+features:
+  - name: Authentication and Role Guard
+    description: Doctor login flow with role checks and doctor profile verification in Firestore.
+    files:
+      - lib/services/auth_service.dart
+      - lib/main.dart
+      - lib/screens/auth/login_screen.dart
+    endpoints: []
+    depends_on:
+      - Firebase Auth
+      - Firestore users/doctors collections
+  - name: Appointment Prescription Workflow
+    description: Doctors can manage medicines, notes, and export/share prescriptions as PDF from appointment details.
+    files:
+      - lib/screens/appointments/appointment_detail_screen.dart
+      - lib/services/firestore_service.dart
+      - lib/models/prescription_template.dart
+    endpoints: []
+    depends_on:
+      - Firestore appointments and templates
+      - PDF generation and sharing
+  - name: Chat and Patient Context
+    description: Real-time doctor-patient chat with anti-spam controls and patient detail access from chat header.
+    files:
+      - lib/screens/chat/chat_screen.dart
+      - lib/screens/chat/chat_list_screen.dart
+      - lib/services/chat_service.dart
+      - lib/models/chat.dart
+    endpoints: []
+    depends_on:
+      - Firestore chat messages
+      - Authenticated doctor session
+  - name: Notification Delivery Pipeline
+    description: Push notifications with foreground/background handlers, local notification display, token persistence, and tap payload handling.
+    files:
+      - lib/services/push_notification_service.dart
+      - lib/services/app_notification_service.dart
+      - firebase_functions/index.js
+      - android/app/src/main/AndroidManifest.xml
+      - ios/Runner/AppDelegate.swift
+    endpoints:
+      - method: POST
+        path: /sendNotification
+        description: Sends FCM notification to target user token from Cloud Function.
+        auth_required: false
+        request_schema:
+          body:
+            userId: string
+            title: string
+            body: string
+            data: map
+        response_schema:
+          "200": success result
+          "400": missing userId/title/body
+          "404": user not found
+          "500": server error
+    depends_on:
+      - Firebase Cloud Messaging
+      - Firestore token storage
+known_limitations:
+  - issue: Notification tap routing is currently log/fallback based and not wired to a global navigation key.
+    location: lib/services/push_notification_service.dart
+    impact: Tapping notifications may not deep-link to a specific screen yet.

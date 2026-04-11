@@ -15,6 +15,7 @@ import '../../config/constants.dart';
 import '../patients/patients_list_screen.dart';
 import '../../models/dashboard_data.dart';
 import '../../l10n/app_localizations.dart';
+import 'prescription_templates_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -92,7 +93,8 @@ class DashboardScreenState extends State<DashboardScreen> {
         _errorMessage = null;
       });
 
-      _setupNotificationListener(doctor.id);
+      // استخدام user.uid لأن nbig_app يرسل الـ notification على doctorUserId = Firebase Auth UID
+      _setupNotificationListener(user.uid);
     } catch (e) {
       debugPrint('❌ Error in _loadData: $e');
       if (_doctor != null) {
@@ -153,7 +155,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         backgroundColor: AppColors.primary,
-        duration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'OK',
@@ -450,103 +452,150 @@ class DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: _onlineStatusService != null
-                        ? _toggleOnlineStatus
-                        : null,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _isOnline
-                            ? AppColors.success.withValues(alpha: 0.25)
-                            : Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: _onlineStatusService != null
+                          ? _toggleOnlineStatus
+                          : null,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
                           color: _isOnline
-                              ? AppColors.success.withValues(alpha: 0.5)
-                              : Colors.white.withValues(alpha: 0.2),
-                          width: 1,
+                              ? AppColors.success.withValues(alpha: 0.25)
+                              : Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _isOnline
+                                ? AppColors.success.withValues(alpha: 0.5)
+                                : Colors.white.withValues(alpha: 0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _isOnline
+                                    ? AppColors.success
+                                    : AppColors.textHint,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isOnline ? 'Available' : 'Unavailable',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _isOnline
+                                    ? AppColors.success
+                                    : Colors.white.withValues(alpha: 0.6),
+                                fontFamily: 'Cairo',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _isOnline
-                                  ? AppColors.success
-                                  : AppColors.textHint,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _isOnline ? 'Available' : 'Unavailable',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _isOnline
-                                  ? AppColors.success
-                                  : Colors.white.withValues(alpha: 0.6),
-                              fontFamily: 'Cairo',
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ScheduleManagementScreen(),
-                      ),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1,
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ScheduleManagementScreen(),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.calendar_month_rounded,
-                            size: 14,
-                            color: Colors.white.withValues(alpha: 0.85),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            width: 1,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Manage Schedule',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              size: 14,
                               color: Colors.white.withValues(alpha: 0.85),
-                              fontFamily: 'Cairo',
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              'Manage Schedule',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontFamily: 'Cairo',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PrescriptionTemplatesScreen(),
+                        ),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.description,
+                              size: 14,
+                              color: Colors.white.withValues(alpha: 0.85),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Templates',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontFamily: 'Cairo',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -556,59 +605,6 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStatsSection(DashboardData data) {
-    final stats = [
-      _StatData(
-        label: 'Today\'s Patients',
-        value: '${data.todayPatients}',
-        icon: Icons.people_rounded,
-        color: AppColors.primary,
-        bg: AppColors.primary.withValues(alpha: 0.1),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const AppointmentsScreen(initialIndex: 0),
-          ),
-        ),
-      ),
-      _StatData(
-        label: 'Pending',
-        value: '${data.pendingAppointments}',
-        icon: Icons.hourglass_top_rounded,
-        color: AppColors.warning,
-        bg: AppColors.warning.withValues(alpha: 0.1),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const AppointmentsScreen(initialIndex: 1),
-          ),
-        ),
-      ),
-      _StatData(
-        label: 'Upcoming',
-        value: '${data.upcomingAppointments}',
-        icon: Icons.event_rounded,
-        color: AppColors.info,
-        bg: AppColors.info.withValues(alpha: 0.1),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const AppointmentsScreen(initialIndex: 2),
-          ),
-        ),
-      ),
-      _StatData(
-        label: 'Total',
-        value: '${data.totalPatients}',
-        icon: Icons.group_rounded,
-        color: const Color(0xFF8B5CF6),
-        bg: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PatientsListScreen()),
-        ),
-      ),
-    ];
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
@@ -617,64 +613,147 @@ class DashboardScreenState extends State<DashboardScreen> {
           _buildSectionTitle('Overview'),
           const SizedBox(height: 12),
           Row(
-            children: stats
-                .map(
-                  (s) => Expanded(
-                    child: GestureDetector(
-                      onTap: s.onTap,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: AppColors.cardShadow,
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: s.bg,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(s.icon, color: s.color, size: 18),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              s.value,
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: s.color,
-                                fontFamily: 'Cairo',
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              s.label,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textSecondary,
-                                fontFamily: 'Cairo',
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Today\'s Patients',
+                  '${data.todayPatients}',
+                  Icons.people_rounded,
+                  AppColors.primary,
+                  AppColors.primary.withValues(alpha: 0.1),
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AppointmentsScreen(initialIndex: 0),
                     ),
                   ),
-                )
-                .toList(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Daily Income',
+                  '\$${data.dailyIncome.toStringAsFixed(0)}',
+                  Icons.monetization_on_rounded,
+                  AppColors.success,
+                  AppColors.success.withValues(alpha: 0.1),
+                  null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Pending',
+                  '${data.pendingAppointments}',
+                  Icons.hourglass_top_rounded,
+                  AppColors.warning,
+                  AppColors.warning.withValues(alpha: 0.1),
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AppointmentsScreen(initialIndex: 1),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Upcoming',
+                  '${data.upcomingAppointments}',
+                  Icons.event_rounded,
+                  AppColors.info,
+                  AppColors.info.withValues(alpha: 0.1),
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AppointmentsScreen(initialIndex: 2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Total Patients',
+                  '${data.totalPatients}',
+                  Icons.group_rounded,
+                  const Color(0xFF8B5CF6),
+                  const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PatientsListScreen(),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: const SizedBox()), // Empty slot for balance
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color, Color bg, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          vertical: 14,
+          horizontal: 10,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppColors.cardShadow,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: bg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontFamily: 'Cairo',
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+                fontFamily: 'Cairo',
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -708,13 +787,14 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildTodayAppointmentsSection(List<Appointment> appointments) {
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle(
-            'Today\'s Appointments',
+            l10n.dashTodayAndNewAppointments,
             trailing: TextButton(
               onPressed: () => Navigator.push(
                 context,
@@ -727,9 +807,9 @@ class DashboardScreenState extends State<DashboardScreen> {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text(
-                'View All',
-                style: TextStyle(
+              child: Text(
+                l10n.dashViewAll,
+                style: const TextStyle(
                   fontFamily: 'Cairo',
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -742,8 +822,8 @@ class DashboardScreenState extends State<DashboardScreen> {
           if (appointments.isEmpty)
             _buildEmptyState(
               icon: Icons.event_available_rounded,
-              title: 'No Appointments Today',
-              subtitle: 'A quiet day, enjoy!',
+              title: l10n.dashNoAppointmentsTitle,
+              subtitle: l10n.dashNoAppointmentsSub,
             )
           else
             ListView.separated(
@@ -885,21 +965,4 @@ class DashboardScreenState extends State<DashboardScreen> {
       }
     }
   }
-}
-
-class _StatData {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final Color bg;
-  final VoidCallback onTap;
-  const _StatData({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.bg,
-    required this.onTap,
-  });
 }
