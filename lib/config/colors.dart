@@ -1,5 +1,8 @@
 
 import 'package:flutter/material.dart';
+import 'app_colors_of.dart';
+
+// ignore_for_file: non_constant_identifier_names
 
 /// ألوان التطبيق الأساسية — Ultra-Premium Medical Theme
 class AppColors {
@@ -143,4 +146,36 @@ class AppColors {
       offset: const Offset(0, 3),
     ),
   ];
+
+  // ═══════════════════════════════════════════════════════
+  // Dark Mode Variants
+  // ═══════════════════════════════════════════════════════
+
+  // Backgrounds
+  static const Color darkScaffold    = Color(0xFF0F172A);
+  static const Color darkCard        = Color(0xFF1E293B);
+  static const Color darkSurface     = Color(0xFF263347);
+  static const Color darkSurfaceVar  = Color(0xFF1E293B);
+
+  // Text
+  static const Color darkTextPrimary   = Color(0xFFE2E8F0);
+  static const Color darkTextSecondary = Color(0xFF94A3B8);
+  static const Color darkTextHint      = Color(0xFF64748B);
+
+  // Borders
+  static const Color darkBorder  = Color(0xFF334155);
+  static const Color darkDivider = Color(0xFF2D3E52);
+
+  // Nav bar
+  static const Color darkNavBar = Color(0xFF1E293B);
+
+  // Glass / teal tint for dark
+  static const Color darkGlassTeal = Color(0x260B6E6E); // ~15% teal
+
+  // ═══════════════════════════════════════════════════════
+  // Context-aware helpers  (use these in screens/widgets)
+  // ═══════════════════════════════════════════════════════
+
+  /// Returns a context-aware palette based on current brightness.
+  static AppColorsOf of(BuildContext context) => AppColorsOf(context);
 }

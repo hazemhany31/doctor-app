@@ -75,24 +75,19 @@ class _PrescriptionTemplatesScreenState
               height: MediaQuery.of(context).size.height * 0.85,
               padding: EdgeInsets.only(
                   bottom: MediaQuery.of(context).viewInsets.bottom),
-              decoration: const BoxDecoration(
-                color: AppColors.scaffoldBackground,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              decoration: BoxDecoration(
+                color: AppColors.of(context).scaffoldBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.of(context).cardBg,
                       borderRadius:
                           const BorderRadius.vertical(top: Radius.circular(20)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 5,
-                        ),
-                      ],
+                      boxShadow: AppColors.of(context).cardShadow,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -101,10 +96,10 @@ class _PrescriptionTemplatesScreenState
                           template == null
                               ? 'إضافة قالب جديد'
                               : 'تعديل القالب',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: AppColors.of(context).textPrimary,
                           ),
                         ),
                         IconButton(
@@ -288,7 +283,7 @@ class _PrescriptionTemplatesScreenState
     }
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       appBar: AppBar(
         title: const Text('قوالب الوصفات الطبية', style: TextStyle(fontFamily: 'Cairo')),
         backgroundColor: AppColors.primary,

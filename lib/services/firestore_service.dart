@@ -108,6 +108,10 @@ class FirestoreService {
     String? about,
     String? photoUrl,
     Map<String, dynamic>? clinicInfo,
+    String? facebook,
+    String? instagram,
+    String? linkedin,
+    String? twitter,
   }) async {
     try {
       debugPrint('📝 إنشاء ملف شخصي جديد للدكتور...');
@@ -129,6 +133,10 @@ class FirestoreService {
         'reviewsCount': 0,
         'certificates': [],
         'createdAt': FieldValue.serverTimestamp(),
+        'facebook': facebook,
+        'instagram': instagram,
+        'linkedin': linkedin,
+        'twitter': twitter,
       };
 
       // إضافة معلومات العيادة إذا كانت موجودة
@@ -166,6 +174,10 @@ class FirestoreService {
     int? yearsOfExperience,
     String? bio,
     Map<String, dynamic>? clinicInfo,
+    String? facebook,
+    String? instagram,
+    String? linkedin,
+    String? twitter,
   }) async {
     try {
       debugPrint('📝 تحديث الملف الشخصي للدكتور...');
@@ -181,6 +193,10 @@ class FirestoreService {
       }
       if (bio != null) data['bio'] = bio;
       if (clinicInfo != null) data['clinicInfo'] = clinicInfo;
+      if (facebook != null) data['facebook'] = facebook;
+      if (instagram != null) data['instagram'] = instagram;
+      if (linkedin != null) data['linkedin'] = linkedin;
+      if (twitter != null) data['twitter'] = twitter;
 
       if (data.isNotEmpty) {
         await _firestore
@@ -289,10 +305,16 @@ class FirestoreService {
   }) async {
       final now = DateTime.now();
       
-      // 1. Initial parsing with safety
+      // 1. Initial parsing with safety — skip soft-deleted docs
       List<Appointment> appointments = [];
       for (var doc in docs) {
         try {
+          // Skip docs marked as soft-deleted by doctor
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data != null) {
+            if (data['deletedByDoctor'] == true) continue;
+            if (data['status'] == 'deleted') continue;
+          }
           appointments.add(Appointment.fromFirestore(doc));
         } catch (e) {
           debugPrint('❌ Skipping corrupt appointment document (${doc.id}): $e');
@@ -427,13 +449,34 @@ class FirestoreService {
     });
   }
 
-  /// حذف الموعد نهائياً
+  /// حذف الموعد نهائياً — مع fallback لـ soft-delete لو الـ rules لا تسمح
   Future<void> deleteAppointment(String appointmentId) async {
+    final docRef = _firestore
+        .collection(AppConstants.appointmentsCollection)
+        .doc(appointmentId);
     try {
-      await _firestore
-          .collection(AppConstants.appointmentsCollection)
-          .doc(appointmentId)
-          .delete();
+      // Try hard delete first (requires updated Firestore rules)
+      await docRef.delete();
+      debugPrint('✅ Appointment hard-deleted: $appointmentId');
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        // Fallback: soft-delete — mark as deleted so the doctor doesn't see it
+        debugPrint('⚠️ No delete permission — falling back to soft-delete');
+        try {
+          await docRef.update({
+            'deletedByDoctor': true,
+            'status': 'deleted',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          debugPrint('✅ Appointment soft-deleted: $appointmentId');
+        } catch (updateError) {
+          debugPrint('❌ Soft-delete also failed: $updateError');
+          rethrow;
+        }
+      } else {
+        debugPrint('❌ Error deleting appointment: $e');
+        rethrow;
+      }
     } catch (e) {
       debugPrint('❌ Error deleting appointment: $e');
       rethrow;
@@ -458,6 +501,20 @@ class FirestoreService {
       final patientId = apptData['patientId']?.toString() ?? '';
       final doctorName = apptData['doctorName']?.toString() ?? 'الطبيب';
 
+      // استخرج تاريخ ووقت الموعد لعرضه في الإشعار
+      DateTime? apptDateTime;
+      final dtValue = apptData['dateTime'];
+      if (dtValue is Timestamp) {
+        apptDateTime = dtValue.toDate();
+      }
+
+      // جلب لغة المريض من Firestore (ar أو en)
+      final bool isArabicPatient = await _getPatientLanguage(patientId);
+
+      final String apptDateStr = apptDateTime != null
+          ? _formatApptDate(apptDateTime, arabic: isArabicPatient)
+          : '';
+
       final updateData = {'status': status, 'updatedAt': FieldValue.serverTimestamp()};
 
       if (cancelReason != null) {
@@ -466,20 +523,46 @@ class FirestoreService {
 
       await docRef.update(updateData);
 
-      // إرسال تنبيه للمريض
+      // إرسال تنبيه للمريض بلغته
       if (patientId.isNotEmpty) {
         String title = '';
         String body = '';
         String type = '';
 
         if (status == AppConstants.appointmentCancelled) {
-          title = 'تم إلغاء الموعد';
-          body = 'نعتذر، تم إلغاء موعدك مع د. $doctorName';
-          if (cancelReason != null) body += ' بسبب: $cancelReason';
+          if (isArabicPatient) {
+            title = 'تم إلغاء الموعد';
+            body = 'نعتذر، تم إلغاء موعدك مع د. $doctorName';
+            if (apptDateStr.isNotEmpty) body += ' ($apptDateStr)';
+            if (cancelReason != null) body += ' — السبب: $cancelReason';
+          } else {
+            title = 'Appointment Cancelled';
+            body = 'Sorry, your appointment with Dr. $doctorName has been cancelled';
+            if (apptDateStr.isNotEmpty) body += ' ($apptDateStr)';
+            if (cancelReason != null) body += ' — Reason: $cancelReason';
+          }
           type = 'appointment_cancelled';
+        } else if (status == AppConstants.appointmentAccepted) {
+          if (isArabicPatient) {
+            title = '✅ تم قبول موعدك!';
+            body = 'د. $doctorName وافق على موعدك';
+            if (apptDateStr.isNotEmpty) body += '\n📅 $apptDateStr';
+          } else {
+            title = '✅ Appointment Accepted!';
+            body = 'Dr. $doctorName has accepted your appointment';
+            if (apptDateStr.isNotEmpty) body += '\n📅 $apptDateStr';
+          }
+          type = 'appointment_accepted';
         } else if (status == AppConstants.appointmentConfirmed) {
-          title = 'تأكيد الموعد';
-          body = 'تم تأكيد موعدك مع د. $doctorName بنجاح';
+          if (isArabicPatient) {
+            title = 'تأكيد الموعد';
+            body = 'تم تأكيد موعدك مع د. $doctorName';
+            if (apptDateStr.isNotEmpty) body += '\n📅 $apptDateStr';
+          } else {
+            title = 'Appointment Confirmed';
+            body = 'Your appointment with Dr. $doctorName has been confirmed';
+            if (apptDateStr.isNotEmpty) body += '\n📅 $apptDateStr';
+          }
           type = 'appointment_confirmed';
         }
 
@@ -496,6 +579,46 @@ class FirestoreService {
     } catch (e) {
       debugPrint('❌ Error updating appointment status: $e');
       rethrow;
+    }
+  }
+
+  /// جلب لغة المريض من Firestore — إذا لم تُحدَّد يُفترض العربية
+  Future<bool> _getPatientLanguage(String patientId) async {
+    if (patientId.isEmpty) return true;
+    try {
+      final doc = await _firestore.collection('users').doc(patientId).get();
+      if (doc.exists) {
+        final lang = doc.data()?['language']?.toString() ?? 'ar';
+        return lang == 'ar';
+      }
+    } catch (_) {}
+    return true; // default: Arabic
+  }
+
+  /// تنسيق تاريخ ووقت الموعد للعرض في الإشعار
+  String _formatApptDate(DateTime dt, {bool arabic = true}) {
+    if (arabic) {
+      const days = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+      const months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+                      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+      final dayName = days[dt.weekday - 1];
+      final monthName = months[dt.month - 1];
+      final hour = dt.hour;
+      final minute = dt.minute.toString().padLeft(2, '0');
+      final period = hour < 12 ? 'ص' : 'م';
+      final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+      return '$dayName ${dt.day} $monthName — $displayHour:$minute $period';
+    } else {
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final dayName = days[dt.weekday - 1];
+      final monthName = months[dt.month - 1];
+      final hour = dt.hour;
+      final minute = dt.minute.toString().padLeft(2, '0');
+      final period = hour < 12 ? 'AM' : 'PM';
+      final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+      return '$dayName ${dt.day} $monthName — $displayHour:$minute $period';
     }
   }
 
@@ -587,6 +710,7 @@ class FirestoreService {
     DateTime? medicationReminderTime,
     String? doctorNotes,
     String? status,
+    String? doctorId, // مطلوب لحساب الـ income عند الإكمال
   }) async {
     final data = <String, dynamic>{
       'updatedAt': FieldValue.serverTimestamp(),
@@ -606,6 +730,23 @@ class FirestoreService {
       data['status'] = status;
     }
 
+    // ✅ لما الموعد يتمّ: نكتب الـ fees في الـ appointment مباشرةً
+    if (status == AppConstants.appointmentCompleted && doctorId != null) {
+      try {
+        // جرب بالـ doc ID أول، لو فشل جرب بالـ userId
+        Doctor? doc = await getDoctor(doctorId);
+        if (doc == null || doc.clinicInfo.fees == 0.0) {
+          doc = await getDoctorByUserId(doctorId);
+        }
+        final double completedFees = doc?.clinicInfo.fees ?? 0.0;
+        data['completedFees'] = completedFees;
+        data['completedAt'] = FieldValue.serverTimestamp();
+        debugPrint('💰 Writing completedFees=$completedFees to appointment $appointmentId');
+      } catch (e) {
+        debugPrint('⚠️ Could not resolve doctor fees for income: $e');
+      }
+    }
+
     final docRef = _firestore.collection(AppConstants.appointmentsCollection).doc(appointmentId);
     await docRef.update(data);
 
@@ -618,17 +759,33 @@ class FirestoreService {
         final doctorName = apptData['doctorName']?.toString() ?? 'الطبيب';
 
         if (patientId.isNotEmpty) {
-          String title = 'تحديث في خطة العلاج';
-          String body = 'قام د. $doctorName بتحديث تفاصيل موعدك';
+          final bool isArabicPatient = await _getPatientLanguage(patientId);
+          String title = '';
+          String body = '';
           String type = 'prescription_updated';
 
-          if (prescriptions != null && prescriptions.isNotEmpty) {
-            body = 'قام د. $doctorName بإضافة وصفة طبية جديدة لموعدك';
+          if (isArabicPatient) {
+            title = 'تحديث في خطة العلاج';
+            body = 'قام د. $doctorName بتحديث تفاصيل موعدك';
+            if (prescriptions != null && prescriptions.isNotEmpty) {
+              body = 'قام د. $doctorName بإضافة وصفة طبية جديدة لموعدك';
+            }
+          } else {
+            title = 'Treatment Plan Update';
+            body = 'Dr. $doctorName has updated your appointment details';
+            if (prescriptions != null && prescriptions.isNotEmpty) {
+              body = 'Dr. $doctorName has added a new prescription to your appointment';
+            }
           }
           
           if (status == AppConstants.appointmentCompleted) {
-            title = 'اكتمل الموعد';
-            body = 'تم الانتهاء من موعدك مع د. $doctorName. الوصفة الطبية متاحة الآن.';
+            if (isArabicPatient) {
+              title = 'اكتمل الموعد';
+              body = 'تم الانتهاء من موعدك مع د. $doctorName. الوصفة الطبية متاحة الآن.';
+            } else {
+              title = 'Appointment Completed';
+              body = 'Your appointment with Dr. $doctorName has been completed. The prescription is now available.';
+            }
             type = 'appointment_completed';
           }
 
@@ -1010,12 +1167,6 @@ class FirestoreService {
       final patientIds = <String>{};
       final todayAppts = <Appointment>[];
 
-      Doctor? doctor;
-      if (uniqueIds.isNotEmpty) {
-        doctor = await getDoctor(uniqueIds.first);
-      }
-      final double fees = doctor?.clinicInfo.fees ?? 0.0;
-
       for (var doc in allDocs) {
         try {
           final data = doc.data() as Map<String, dynamic>?;
@@ -1039,8 +1190,11 @@ class FirestoreService {
               if (status != AppConstants.appointmentCancelled) {
                 todayPatientsCount++;
               }
-              if (status == AppConstants.appointmentCompleted || status == AppConstants.appointmentAccepted) {
-                dailyIncomeCount += fees;
+              // ✅ نقرا الـ fees من الـ appointment مباشرةً (اتسجّلت وقت الإكمال)
+              if (status == AppConstants.appointmentCompleted) {
+                final double apptFees = (data['completedFees'] ?? 0.0).toDouble();
+                dailyIncomeCount += apptFees;
+                debugPrint('💰 Added fees=$apptFees from appointment ${doc.id} | total=$dailyIncomeCount');
               }
             }
 

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/colors.dart';
 import '../services/chat_service.dart';
 import '../services/firestore_service.dart';
@@ -17,6 +18,7 @@ import 'patients/patients_list_screen.dart';
 import 'profile/profile_screen.dart';
 import '../services/app_notification_service.dart';
 import '../services/push_notification_service.dart';
+import '../models/appointment.dart';
 
 /// الشاشة الرئيسية مع Floating Pill Navigation
 class MainLayout extends StatefulWidget {
@@ -43,10 +45,19 @@ class MainLayoutState extends State<MainLayout>
   final FirestoreService _firestoreService = FirestoreService();
   final EmergencyService _emergencyService = EmergencyService();
   StreamSubscription? _emergencySub;
+  StreamSubscription<List<Appointment>>? _newApptSub;
   bool _isShowingEmergencyDialog = false;
 
   String? _doctorId;
   int _pendingAlertCount = 0; // tracks incoming emergency alerts
+
+  // Tracks appointment IDs seen on first snapshot to avoid notifying old ones
+  final Set<String> _seenAppointmentIds = {};
+  bool _apptFirstLoad = true;
+
+  // Tracks emergency alert IDs already notified to avoid duplicate notifications
+  final Set<String> _seenEmergencyIds = {};
+  bool _emergencyFirstLoad = true;
 
   final OnlineStatusService _onlineStatusService = OnlineStatusService();
   final _dashboardKey = GlobalKey<DashboardScreenState>();
@@ -103,6 +114,7 @@ class MainLayoutState extends State<MainLayout>
         _initializeOnlineStatus(doctor.id);
         _listenToEmergencies(doctor.id);
         AppNotificationService().startListening([user.uid, doctor.id]);
+        _listenForNewAppointments([doctor.id, user.uid]);
 
         // طلب إذن الإشعارات بشكل احترافي مع شرح (Compliance)
         if (mounted) {
@@ -146,12 +158,53 @@ class MainLayoutState extends State<MainLayout>
 
   void _listenToEmergencies(String doctorId) {
     _emergencySub?.cancel();
+    _seenEmergencyIds.clear();
+    _emergencyFirstLoad = true;
+
     _emergencySub = _emergencyService.watchEmergencyAlerts(
       [doctorId, FirebaseAuth.instance.currentUser!.uid],
     ).listen(
       (alerts) {
         if (!mounted) return;
         setState(() => _pendingAlertCount = alerts.length);
+
+        if (_emergencyFirstLoad) {
+          // Seed existing alert IDs so we don't re-notify on app start
+          for (final doc in alerts) {
+            _seenEmergencyIds.add(doc.id);
+          }
+          _emergencyFirstLoad = false;
+          debugPrint('Emergency watcher: seeded ${_seenEmergencyIds.length} existing alerts');
+          // Still show bottom sheet for active alerts on app open
+          if (alerts.isNotEmpty && !_isShowingEmergencyDialog) {
+            _showEmergencyBottomSheet(alerts.first);
+          }
+          return;
+        }
+
+        // Fire notification for brand-new alerts
+        for (final alertDoc in alerts) {
+          if (!_seenEmergencyIds.contains(alertDoc.id)) {
+            _seenEmergencyIds.add(alertDoc.id);
+            final data = alertDoc.data() as Map<String, dynamic>;
+            final patientName = (data['patientName'] as String?)?.trim().isNotEmpty == true
+                ? data['patientName'] as String
+                : 'مريض';
+            final description = data['description'] as String?;
+            final createdAt = (data['createdAt'] is Timestamp)
+                ? (data['createdAt'] as Timestamp).toDate()
+                : DateTime.now();
+
+            PushNotificationService().showEmergencyNotification(
+              alertId: alertDoc.id,
+              patientName: patientName,
+              description: description,
+              time: createdAt,
+            );
+          }
+        }
+
+        // Also show in-app bottom sheet
         if (alerts.isNotEmpty && !_isShowingEmergencyDialog) {
           _showEmergencyBottomSheet(alerts.first);
         }
@@ -203,17 +256,110 @@ class MainLayoutState extends State<MainLayout>
   @override
   void dispose() {
     _emergencySub?.cancel();
+    _newApptSub?.cancel();
     _onlineStatusService.dispose();
     super.dispose();
   }
 
+  // New-appointment watcher: fires a local notification when a patient books
+  void _listenForNewAppointments(List<String> doctorIds) {
+    _newApptSub?.cancel();
+    _seenAppointmentIds.clear();
+    _apptFirstLoad = true;
+
+    _newApptSub = _firestoreService
+        .getDoctorAppointments(doctorIds)
+        .listen((appointments) {
+      if (_apptFirstLoad) {
+        for (final a in appointments) {
+          _seenAppointmentIds.add(a.id);
+        }
+        _apptFirstLoad = false;
+        debugPrint('New-appt watcher: seeded ${_seenAppointmentIds.length} existing appointments');
+        return;
+      }
+
+      for (final appt in appointments) {
+        if (_seenAppointmentIds.contains(appt.id)) continue;
+        _seenAppointmentIds.add(appt.id);
+
+        // Only notify for freshly-booked (pending) appointments
+        if (appt.status != 'pending' && appt.status != 'confirmed') continue;
+
+        // Read language preference (async, fire-and-forget flow)
+        SharedPreferences.getInstance().then((prefs) {
+          final lang = prefs.getString('language_code') ?? 'ar';
+          final isAr = lang == 'ar';
+
+          final patientName = (appt.patientName?.trim().isNotEmpty == true)
+              ? appt.patientName!
+              : (isAr ? 'مريض' : 'Patient');
+
+          final dateLabel = _formatAppointmentDate(appt.dateTime, lang);
+          final timeLabel = _formatAppointmentTime(appt.dateTime, lang);
+
+          final title = isAr ? 'حجز موعد جديد' : 'New Appointment Booked';
+          final body = isAr
+              ? '$patientName حجز موعداً $dateLabel الساعة $timeLabel'
+              : '$patientName booked an appointment on $dateLabel at $timeLabel';
+
+          debugPrint('New appointment notification [$lang]: $body (id=${appt.id})');
+
+          PushNotificationService().show(
+            title,
+            body,
+            payload: '{"appointmentId":"${appt.id}","type":"new_appointment"}',
+          );
+        });
+      }
+    }, onError: (e) => debugPrint('New-appt watcher error: $e'));
+  }
+
+  /// Day + date label (bilingual)
+  String _formatAppointmentDate(DateTime dt, String lang) {
+    final isAr = lang == 'ar';
+    if (isAr) {
+      const arabicDays = [
+        'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'
+      ];
+      const arabicMonths = [
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+      ];
+      final day = arabicDays[dt.weekday - 1];
+      final month = arabicMonths[dt.month - 1];
+      return 'يوم $day ${dt.day} $month';
+    } else {
+      const englishDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const englishMonths = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      final day = englishDays[dt.weekday - 1];
+      final month = englishMonths[dt.month - 1];
+      return '$day, ${dt.day} $month';
+    }
+  }
+
+  /// Time label (bilingual): "10:30 ص" / "10:30 AM"
+  String _formatAppointmentTime(DateTime dt, String lang) {
+    final isAr = lang == 'ar';
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final period = isAr ? (dt.hour < 12 ? 'ص' : 'م') : (dt.hour < 12 ? 'AM' : 'PM');
+    return '$hour12:$minute $period';
+  }
+
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    SystemChrome.setSystemUIOverlayStyle(
+      isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+    );
 
     if (_doctorNotFound) {
       return Scaffold(
-        backgroundColor: AppColors.scaffoldBackground,
+        backgroundColor: AppColors.of(context).scaffoldBg,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -254,7 +400,7 @@ class MainLayoutState extends State<MainLayout>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       extendBody: true,
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: _buildFloatingNavBar(),
@@ -263,6 +409,7 @@ class MainLayoutState extends State<MainLayout>
 
   Widget _buildFloatingNavBar() {
     final l10n = AppLocalizations.of(context)!;
+    final c = AppColors.of(context);
     final navLabels = [
       l10n.navHome,
       l10n.navAppointments,
@@ -274,10 +421,10 @@ class MainLayoutState extends State<MainLayout>
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: c.navBarBg,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: AppColors.floatingShadow,
-        border: Border.all(color: AppColors.border, width: 1),
+        boxShadow: c.floatingShadow,
+        border: Border.all(color: c.border, width: 1),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: Row(
@@ -461,9 +608,9 @@ class _EmergencyBottomSheetState extends State<_EmergencyBottomSheet>
   Widget build(BuildContext context) {
     final l10n = widget.l10n;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom + 32,
@@ -478,7 +625,7 @@ class _EmergencyBottomSheetState extends State<_EmergencyBottomSheet>
           Container(
             width: 40, height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(2),
             ),
           ),

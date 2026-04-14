@@ -8,6 +8,8 @@ class Message {
   final String senderName;
   final String senderType; // 'doctor' أو 'patient'
   final String text;
+  final String? imageUrl;
+  final String type; // 'text' أو 'image'
   final DateTime sentAt;
   final bool isRead;
 
@@ -17,6 +19,8 @@ class Message {
     required this.senderName,
     required this.senderType,
     required this.text,
+    this.imageUrl,
+    this.type = 'text',
     required this.sentAt,
     this.isRead = false,
   });
@@ -35,6 +39,8 @@ class Message {
       senderName: map['senderName'] ?? '',
       senderType: map['senderType'] ?? 'patient',
       text: map['text'] ?? '',
+      imageUrl: map['imageUrl'],
+      type: map['type'] ?? (map['imageUrl'] != null ? 'image' : 'text'),
       sentAt: (map['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isRead: map['isRead'] ?? false,
     );
@@ -47,6 +53,8 @@ class Message {
       'senderName': senderName,
       'senderType': senderType,
       'text': text,
+      'imageUrl': imageUrl,
+      'type': type,
       'sentAt': Timestamp.fromDate(sentAt),
       'isRead': isRead,
     };
@@ -58,6 +66,8 @@ class Message {
     String? senderName,
     String? senderType,
     String? text,
+    String? imageUrl,
+    String? type,
     DateTime? sentAt,
     bool? isRead,
   }) {
@@ -67,6 +77,8 @@ class Message {
       senderName: senderName ?? this.senderName,
       senderType: senderType ?? this.senderType,
       text: text ?? this.text,
+      imageUrl: imageUrl ?? this.imageUrl,
+      type: type ?? this.type,
       sentAt: sentAt ?? this.sentAt,
       isRead: isRead ?? this.isRead,
     );

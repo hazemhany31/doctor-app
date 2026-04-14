@@ -662,6 +662,12 @@ abstract class AppLocalizations {
   /// **'Messages'**
   String get chatTitle;
 
+  /// No description provided for @chatSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Message your patients directly'**
+  String get chatSubtitle;
+
   /// No description provided for @chatErrorTitle.
   ///
   /// In en, this message translates to:
@@ -1171,6 +1177,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add notes (optional)'**
   String get apptDetailNotesHint;
+
+  /// No description provided for @settingsDarkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark Mode'**
+  String get settingsDarkTitle;
+
+  /// No description provided for @settingsLightTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Light Mode'**
+  String get settingsLightTitle;
+
+  /// No description provided for @settingsDarkSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to switch to Light Mode'**
+  String get settingsDarkSub;
+
+  /// No description provided for @settingsLightSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to switch to Dark Mode'**
+  String get settingsLightSub;
+
+  /// No description provided for @settingsAccountSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Account Management'**
+  String get settingsAccountSection;
+
+  /// No description provided for @settingsDeleteAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Account Permanently'**
+  String get settingsDeleteAccountTitle;
+
+  /// No description provided for @settingsDeleteAccountSub.
+  ///
+  /// In en, this message translates to:
+  /// **'All your data and records will be permanently deleted'**
+  String get settingsDeleteAccountSub;
+
+  /// No description provided for @deleteDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Account Deletion'**
+  String get deleteDialogTitle;
+
+  /// No description provided for @deleteDialogMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete your account permanently? This action is irreversible, and all your patient data and records will be completely erased from the system in compliance with privacy policies.'**
+  String get deleteDialogMessage;
+
+  /// No description provided for @deleteDialogConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm & Delete'**
+  String get deleteDialogConfirm;
+
+  /// No description provided for @reauthDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Identity'**
+  String get reauthDialogTitle;
+
+  /// No description provided for @reauthDialogMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'To delete your account, please enter your current password to confirm your identity.'**
+  String get reauthDialogMessage;
+
+  /// No description provided for @passwordLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get passwordLabel;
 }
 
 class _AppLocalizationsDelegate

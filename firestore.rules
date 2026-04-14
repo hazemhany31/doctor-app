@@ -70,7 +70,7 @@ service cloud.firestore {
         isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patientsCount'])
       );
       
-      allow delete: if isUser(doctorId);
+      allow delete: if isAuthenticated();
       allow create: if isUser(doctorId);
     }
     
@@ -101,8 +101,8 @@ service cloud.firestore {
       // but they MUST set themselves as the patient.
       allow create: if isAuthenticated() && request.resource.data.patientId == request.auth.uid;
       
-      // Only patient can cancel/delete their own pending appointment (hard delete)
-      allow delete: if isAuthenticated() && resource.data.patientId == request.auth.uid;
+      // Patient or Doctor can delete their appointment
+      allow delete: if isAppointmentParticipant() || isDoctor();
     }
     
     // ==========================================
@@ -112,7 +112,7 @@ service cloud.firestore {
       // Users can read/write their own info.
       // (Doctors can read patient profiles if needed).
       allow read: if isAuthenticated(); 
-      allow write: if isUser(userId);
+      allow write: if isAuthenticated();
 
       // --- Medical Records Subcollection ---
       match /medical_records/{recordId} {

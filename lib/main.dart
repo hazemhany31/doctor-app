@@ -12,11 +12,16 @@ import 'config/theme.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main_layout.dart';
 import 'services/auth_service.dart';
+import 'utils/setup_doctors.dart';
 import 'package:provider/provider.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'services/push_notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
+
+/// Global navigator key — used by PushNotificationService to navigate
+/// to AppointmentDetailScreen when a notification is tapped.
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   // Global error handling via runZonedGuarded
@@ -60,6 +65,11 @@ void main() async {
       persistenceEnabled: true,
       cacheSizeBytes: firestore.Settings.CACHE_SIZE_UNLIMITED,
     );
+
+    // Add setup here temporarily to seed DB
+    debugPrint('Running setup_doctors script to add new doctors...');
+    await DoctorSetupScript().setupAllDoctors();
+    debugPrint('setup_doctors script FINISHED.');
 
     runApp(
       ChangeNotifierProvider(
@@ -107,13 +117,23 @@ class DoctorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final localeProvider = Provider.of<LocaleProvider>(context);
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Doctor App',
       debugShowCheckedModeBanner: false,
 
       // Theme
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: localeProvider.themeMode,
+
+      // Disable built-in theme transition animation to prevent the
+      // TextStyle.lerp crash that occurs when switching between light and dark
+      // themes because the two TextStyles have different "inherit" values.
+      builder: (context, child) => AnimatedTheme(
+        data: Theme.of(context),
+        duration: Duration.zero,
+        child: child!,
+      ),
 
       // Localization
       localizationsDelegates: [

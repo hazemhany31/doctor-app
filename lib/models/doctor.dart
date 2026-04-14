@@ -20,6 +20,10 @@ class Doctor {
   final DateTime createdAt;
   final bool isOnline;
   final DateTime? lastSeen;
+  final String? facebook;
+  final String? instagram;
+  final String? linkedin;
+  final String? twitter;
 
   Doctor({
     required this.id,
@@ -39,6 +43,10 @@ class Doctor {
     required this.createdAt,
     this.isOnline = false,
     this.lastSeen,
+    this.facebook,
+    this.instagram,
+    this.linkedin,
+    this.twitter,
   });
 
   /// إنشاء Doctor من Firestore DocumentSnapshot
@@ -58,7 +66,7 @@ class Doctor {
       photoUrl: map['photoUrl'],
       specialization: map['specialization'] ?? '',
       yearsOfExperience: (map['yearsOfExperience'] ?? 0) is int
-          ? map['yearsOfExperience']
+          ? (map['yearsOfExperience'] ?? 0)
           : int.tryParse(map['yearsOfExperience'].toString()) ?? 0,
       certificates: List<String>.from(map['certificates'] ?? []),
       bio: map['bio'],
@@ -72,11 +80,15 @@ class Doctor {
           ? (map['rating'] ?? 0.0)
           : double.tryParse(map['rating'].toString()) ?? 0.0,
       reviewsCount: (map['reviewsCount'] ?? 0) is int
-          ? map['reviewsCount']
+          ? (map['reviewsCount'] ?? 0)
           : int.tryParse(map['reviewsCount'].toString()) ?? 0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isOnline: map['isOnline'] ?? false,
       lastSeen: (map['lastSeen'] as Timestamp?)?.toDate(),
+      facebook: map['facebook'],
+      instagram: map['instagram'],
+      linkedin: map['linkedin'],
+      twitter: map['twitter'],
     );
   }
 
@@ -99,6 +111,10 @@ class Doctor {
       'createdAt': Timestamp.fromDate(createdAt),
       'isOnline': isOnline,
       'lastSeen': lastSeen != null ? Timestamp.fromDate(lastSeen!) : null,
+      'facebook': facebook,
+      'instagram': instagram,
+      'linkedin': linkedin,
+      'twitter': twitter,
     };
   }
 
@@ -120,6 +136,10 @@ class Doctor {
     DateTime? createdAt,
     bool? isOnline,
     DateTime? lastSeen,
+    String? facebook,
+    String? instagram,
+    String? linkedin,
+    String? twitter,
   }) {
     return Doctor(
       id: id ?? this.id,
@@ -139,6 +159,10 @@ class Doctor {
       createdAt: createdAt ?? this.createdAt,
       isOnline: isOnline ?? this.isOnline,
       lastSeen: lastSeen ?? this.lastSeen,
+      facebook: facebook ?? this.facebook,
+      instagram: instagram ?? this.instagram,
+      linkedin: linkedin ?? this.linkedin,
+      twitter: twitter ?? this.twitter,
     );
   }
 }

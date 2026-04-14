@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-
-
 import 'dart:io';
+
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -60,9 +59,12 @@ class StorageService {
         'doctors/profiles/$fileName',
       );
 
+      // قراءة الملف كبايتات لتجنب مشاكل putFile على الـ iOS محاكي 
+      final Uint8List fileBytes = await imageFile.readAsBytes();
+
       // رفع الملف مع تتبع التقدم
-      final UploadTask uploadTask = storageRef.putFile(
-        imageFile,
+      final UploadTask uploadTask = storageRef.putData(
+        fileBytes,
         SettableMetadata(
           contentType: 'image/jpeg',
           customMetadata: {
@@ -77,6 +79,8 @@ class StorageService {
         uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
           final progress = snapshot.bytesTransferred / snapshot.totalBytes;
           onProgress(progress);
+        }, onError: (e) {
+          debugPrint('⚠️ Stream error in uploadProfileImage: $e');
         });
       }
 
@@ -132,8 +136,10 @@ class StorageService {
           'doctors/$folder/$fileName',
         );
 
-        final UploadTask uploadTask = storageRef.putFile(
-          imageFile,
+        final Uint8List fileBytes = await imageFile.readAsBytes();
+
+        final UploadTask uploadTask = storageRef.putData(
+          fileBytes,
           SettableMetadata(contentType: 'image/jpeg'),
         );
 
@@ -142,6 +148,8 @@ class StorageService {
           uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
             final progress = snapshot.bytesTransferred / snapshot.totalBytes;
             onProgress(i, progress);
+          }, onError: (e) {
+            debugPrint('⚠️ Stream error in uploadMultipleImages: $e');
           });
         }
 
@@ -163,4 +171,73 @@ class StorageService {
     final int bytes = file.lengthSync();
     return bytes / (1024 * 1024);
   }
+
+  /// رفع سجل طبي لمريض (صورة أو PDF)
+  Future<String?> uploadMedicalRecord({
+    required String patientId,
+    required String fileName,
+    required Uint8List fileBytes,
+    required String contentType,
+  }) async {
+    try {
+      debugPrint('📤 جاري رفع ملف طبي للمريض: $patientId');
+      
+      final Reference storageRef = _storage.ref().child(
+        'medical_records/$patientId/$fileName',
+      );
+
+      final UploadTask uploadTask = storageRef.putData(
+        fileBytes,
+        SettableMetadata(
+          contentType: contentType,
+          customMetadata: {
+            'patientId': patientId,
+            'uploadedAt': DateTime.now().toIso8601String(),
+          },
+        ),
+      );
+
+      final TaskSnapshot snapshot = await uploadTask;
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      debugPrint('✅ تم رفع الملف الطبي بنجاح: $downloadUrl');
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('❌ خطأ في رفع الملف الطبي: $e');
+      return null;
+    }
+  }
+
+  /// رفع صورة في محادثة
+  Future<String?> uploadChatImage({
+    required String chatId,
+    required File imageFile,
+  }) async {
+    try {
+      debugPrint('📤 جاري رفع صورة في المحادثة: $chatId');
+      
+      final String fileName = 
+          'img_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final Reference storageRef = _storage.ref().child(
+        'chats/$chatId/$fileName',
+      );
+
+      final Uint8List fileBytes = await imageFile.readAsBytes();
+
+      final UploadTask uploadTask = storageRef.putData(
+        fileBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      final TaskSnapshot snapshot = await uploadTask;
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      debugPrint('✅ تم رفع صورة المحادثة بنجاح: $downloadUrl');
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('❌ خطأ في رفع صورة المحادثة: $e');
+      return null;
+    }
+  }
 }
+

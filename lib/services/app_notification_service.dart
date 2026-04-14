@@ -97,9 +97,21 @@ class AppNotificationService {
 
     final title = (data['title'] as String?)?.trim() ?? 'إشعار جديد';
     final body = (data['body'] as String?)?.trim() ?? 'لديك تحديث جديد';
+    final appointmentId = data['appointmentId']?.toString();
+    final type = data['type']?.toString();
 
-    debugPrint('🔔 Showing local notification: $title — $body');
-    _push.show(title, body);
+    // Build a JSON payload so that tapping the local notification
+    // triggers the same navigation logic in PushNotificationService.
+    String? payload;
+    if (appointmentId != null && appointmentId.isNotEmpty) {
+      payload = '{'
+          '"appointmentId":"$appointmentId"'
+          '${type != null ? ',"type":"$type"' : ''}'
+          '}';
+    }
+
+    debugPrint('🔔 Showing local notification: $title — $body (appointmentId=$appointmentId)');
+    _push.show(title, body, payload: payload);
   }
 
   void _onError(Object e) => debugPrint('❌ AppNotificationService error: $e');

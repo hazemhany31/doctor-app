@@ -59,3 +59,13 @@ analyze_output_cleanup.txt
 
 # Secrets
 lib/config/secrets.dart
+.env*
+
+# Firebase Functions
+**/node_modules/
+firebase-debug.log
+firebase-debug.*.log
+
+# Flutter plugins
+.flutter-plugins
+.flutter-plugins-dependencies

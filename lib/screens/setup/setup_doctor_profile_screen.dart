@@ -53,6 +53,10 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
   final _phoneController = TextEditingController();
   final _yearsController = TextEditingController();
   final _bioController = TextEditingController();
+  final _facebookController = TextEditingController();
+  final _instagramController = TextEditingController();
+  final _linkedinController = TextEditingController();
+  final _twitterController = TextEditingController();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -95,6 +99,10 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
     _phoneController.dispose();
     _yearsController.dispose();
     _bioController.dispose();
+    _facebookController.dispose();
+    _instagramController.dispose();
+    _linkedinController.dispose();
+    _twitterController.dispose();
     super.dispose();
   }
 
@@ -134,6 +142,10 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
         ? doctor.yearsOfExperience.toString()
         : '';
     _bioController.text = doctor.bio ?? '';
+    _facebookController.text = doctor.facebook ?? '';
+    _instagramController.text = doctor.instagram ?? '';
+    _linkedinController.text = doctor.linkedin ?? '';
+    _twitterController.text = doctor.twitter ?? '';
   }
 
   void _nextStep() {
@@ -259,6 +271,10 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
           bio: _bioController.text.trim(),
           photoUrl: uploadedPhotoUrl ?? _profileImageUrl,
           clinicInfo: clinicInfo,
+          facebook: _facebookController.text.trim(),
+          instagram: _instagramController.text.trim(),
+          linkedin: _linkedinController.text.trim(),
+          twitter: _twitterController.text.trim(),
         );
         debugPrint('✅ تم تحديث الملف الشخصي بنجاح');
       } else {
@@ -273,6 +289,10 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
           about: _bioController.text.trim(),
           photoUrl: uploadedPhotoUrl ?? _profileImageUrl,
           clinicInfo: clinicInfo,
+          facebook: _facebookController.text.trim(),
+          instagram: _instagramController.text.trim(),
+          linkedin: _linkedinController.text.trim(),
+          twitter: _twitterController.text.trim(),
         );
         debugPrint('✅ تم إنشاء الملف الشخصي بنجاح - Doctor ID: $docId');
       }
@@ -304,7 +324,7 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
       debugPrint('❌ خطأ في حفظ الملف الشخصي: $e');
       setState(() {
         _isLoading = false;
-        _errorMessage = 'حدث خطأ في حفظ البيانات. يرجى المحاولة مرة أخرى.';
+        _errorMessage = 'حدث خطأ في حفظ البيانات: $e';
       });
     }
   }
@@ -355,7 +375,7 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       appBar: AppBar(
         title: Text('إعداد الملف الشخصي'),
         backgroundColor: AppColors.primaryBlue,
@@ -454,7 +474,7 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: AppColors.of(context).cardBg,
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
@@ -479,7 +499,7 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: AppColors.of(context).cardBg,
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
@@ -710,6 +730,85 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
                 fillColor: Colors.white,
               ),
             ),
+            SizedBox(height: 16),
+
+            // Social Media Title
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'حسابات التواصل الاجتماعي',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryBlue,
+                  fontFamily: 'Cairo',
+                ),
+              ),
+            ),
+            SizedBox(height: 8),
+
+            // Facebook
+            TextFormField(
+              controller: _facebookController,
+              decoration: InputDecoration(
+                labelText: 'رابط فيسبوك',
+                hintText: 'https://facebook.com/yourprofile',
+                prefixIcon: Icon(Icons.facebook, color: Color(0xFF1877F2)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+            ),
+            SizedBox(height: 16),
+
+            // Instagram
+            TextFormField(
+              controller: _instagramController,
+              decoration: InputDecoration(
+                labelText: 'رابط إنستجرام',
+                hintText: 'https://instagram.com/yourprofile',
+                prefixIcon: Icon(Icons.camera_alt_outlined, color: Color(0xFFE4405F)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+            ),
+            SizedBox(height: 16),
+
+            // LinkedIn
+            TextFormField(
+              controller: _linkedinController,
+              decoration: InputDecoration(
+                labelText: 'رابط لينكد إن',
+                hintText: 'https://linkedin.com/in/yourprofile',
+                prefixIcon: Icon(Icons.link, color: Color(0xFF0A66C2)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+            ),
+            SizedBox(height: 16),
+
+            // Twitter
+            TextFormField(
+              controller: _twitterController,
+              decoration: InputDecoration(
+                labelText: 'رابط تويتر (X)',
+                hintText: 'https://twitter.com/yourprofile',
+                prefixIcon: Icon(Icons.alternate_email, color: Colors.black),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+            ),
           ],
         ),
       ),
@@ -717,17 +816,12 @@ class _SetupDoctorProfileScreenState extends State<SetupDoctorProfileScreen> {
   }
 
   Widget _buildNavigationButtons() {
+    final c = AppColors.of(context);
     return Container(
       padding: EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: Offset(0, -2),
-          ),
-        ],
+        color: c.navBarBg,
+        boxShadow: c.floatingShadow,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

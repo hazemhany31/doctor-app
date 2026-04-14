@@ -47,7 +47,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 .getDoctorChats(user.uid, doctor.id)
                 .asyncMap((chats) async {
               // Enrich each chat with patient details (Resilient)
-              return await Future.wait(chats.map((chat) async {
+              final enriched = await Future.wait(chats.map((chat) async {
                 final patient = await _firestoreService.getPatient(chat.patientId);
                 if (patient != null) {
                   return chat.copyWith(
@@ -61,6 +61,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 }
                 return chat;
               }));
+
+              // Final sort before UI display (Newest First)
+              enriched.sort((a, b) {
+                final aTime = a.lastMessageTime ?? a.createdAt;
+                final bTime = b.lastMessageTime ?? b.createdAt;
+                return bTime.compareTo(aTime);
+              });
+
+              return enriched;
             });
             _isLoadingDoctorId = false;
           });
@@ -76,10 +85,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    SystemChrome.setSystemUIOverlayStyle(
+      isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+    );
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       body: Column(
         children: [
           // ─── Premium Hero Header ───
@@ -107,7 +119,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             ),
                           ),
                           Text(
-                            'راسل مرضاك مباشرة',
+                            l10n.chatSubtitle,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.55),
                               fontSize: 13,
@@ -225,6 +237,7 @@ class _PremiumChatItem extends StatelessWidget {
     final initials = chat.patientName.isNotEmpty
         ? chat.patientName.trim().split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join().toUpperCase()
         : 'P';
+    final c = AppColors.of(context);
 
     return InkWell(
       onTap: onTap,
@@ -232,13 +245,13 @@ class _PremiumChatItem extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: c.cardBg,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: AppColors.cardShadow,
+          boxShadow: c.cardShadow,
           border: Border.all(
             color: hasUnread
                 ? AppColors.primary.withValues(alpha: 0.2)
-                : AppColors.border,
+                : c.border,
           ),
         ),
         child: Row(
@@ -318,7 +331,7 @@ class _PremiumChatItem extends StatelessWidget {
                             fontSize: 15,
                             fontWeight:
                                 hasUnread ? FontWeight.w800 : FontWeight.w600,
-                            color: AppColors.textPrimary,
+                            color: c.textPrimary,
                             fontFamily: 'Cairo',
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -331,7 +344,7 @@ class _PremiumChatItem extends StatelessWidget {
                           fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w400,
                           color: hasUnread
                               ? AppColors.primary
-                              : AppColors.textHint,
+                              : c.textHint,
                           fontFamily: 'Cairo',
                         ),
                       ),
@@ -346,8 +359,8 @@ class _PremiumChatItem extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             color: hasUnread
-                                ? AppColors.textSecondary
-                                : AppColors.textHint,
+                                ? c.textSecondary
+                                : c.textHint,
                             fontFamily: 'Cairo',
                             fontWeight: hasUnread
                                 ? FontWeight.w600

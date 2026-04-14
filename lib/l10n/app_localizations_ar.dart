@@ -303,6 +303,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get chatTitle => 'الرسائل';
 
   @override
+  String get chatSubtitle => 'راسل مرضاك مباشرة';
+
+  @override
   String get chatErrorTitle => 'خطأ في تحميل البيانات';
 
   @override
@@ -560,4 +563,45 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get apptDetailNotesHint => 'أضف ملاحظاتك (اختياري)';
+
+  @override
+  String get settingsDarkTitle => 'الوضع الداكن';
+
+  @override
+  String get settingsLightTitle => 'الوضع الفاتح';
+
+  @override
+  String get settingsDarkSub => 'اضغط للتبديل للوضع الفاتح';
+
+  @override
+  String get settingsLightSub => 'اضغط للتبديل للوضع الداكن';
+
+  @override
+  String get settingsAccountSection => 'إدارة الحساب';
+
+  @override
+  String get settingsDeleteAccountTitle => 'حذف الحساب نهائياً';
+
+  @override
+  String get settingsDeleteAccountSub => 'سيتم مسح جميع بياناتك وسجلاتك للأبد';
+
+  @override
+  String get deleteDialogTitle => 'تأكيد حذف الحساب';
+
+  @override
+  String get deleteDialogMessage =>
+      'هل أنت متأكد أنك تريد حذف حسابك نهائياً؟ هذا الإجراء لا يمكن التراجع عنه، وسيتم مسح جميع بيانات مرضاك وسجلاتك من النظام بالكامل تماشياً مع سياسات الخصوصية.';
+
+  @override
+  String get deleteDialogConfirm => 'الموافقة والحذف';
+
+  @override
+  String get reauthDialogTitle => 'تأكيد الهوية';
+
+  @override
+  String get reauthDialogMessage =>
+      'لحذف الحساب، يرجى إدخال كلمة المرور الحالية لتأكيد هويتك.';
+
+  @override
+  String get passwordLabel => 'كلمة المرور';
 }

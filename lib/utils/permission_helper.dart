@@ -57,7 +57,7 @@ class PermissionHelper {
     }
 
     // إذا ممنوحة مسبقاً (حتى لو من إعدادات الجهاز مباشرة)، نحفظ الـ flag ونرجع true
-    if (status.isGranted) {
+    if (status.isGranted || status.isLimited) {
       if (permission == Permission.notification) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('pref_notification_granted', true);
@@ -126,12 +126,12 @@ class PermissionHelper {
     }
 
     // نحفظ أن المستخدم وافق (فقط لو النظام قبل)
-    if (result.isGranted && permission == Permission.notification) {
+    if ((result.isGranted || result.isLimited) && permission == Permission.notification) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('pref_notification_granted', true);
     }
 
-    return result.isGranted;
+    return result.isGranted || result.isLimited;
   }
 
   static void _showSettingsDialog(BuildContext context, String title) {

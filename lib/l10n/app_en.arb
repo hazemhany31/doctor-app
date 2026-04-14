@@ -131,6 +131,7 @@
     "profDiagnosticSub": "To identify data issues",
     "profHelpSupport": "Help & Support",
     "chatTitle": "Messages",
+    "chatSubtitle": "Message your patients directly",
     "chatErrorTitle": "Error Loading Data",
     "chatErrorNoDoctor": "Doctor information not found",
     "chatErrorPrefix": "An error occurred: ",
@@ -232,5 +233,18 @@
     "apptDetailType": "Type",
     "apptDetailStatus": "Status",
     "apptDetailNotes": "Doctor Notes",
-    "apptDetailNotesHint": "Add notes (optional)"
+    "apptDetailNotesHint": "Add notes (optional)",
+    "settingsDarkTitle": "Dark Mode",
+    "settingsLightTitle": "Light Mode",
+    "settingsDarkSub": "Tap to switch to Light Mode",
+    "settingsLightSub": "Tap to switch to Dark Mode",
+    "settingsAccountSection": "Account Management",
+    "settingsDeleteAccountTitle": "Delete Account Permanently",
+    "settingsDeleteAccountSub": "All your data and records will be permanently deleted",
+    "deleteDialogTitle": "Confirm Account Deletion",
+    "deleteDialogMessage": "Are you sure you want to delete your account permanently? This action is irreversible, and all your patient data and records will be completely erased from the system in compliance with privacy policies.",
+    "deleteDialogConfirm": "Confirm & Delete",
+    "reauthDialogTitle": "Confirm Identity",
+    "reauthDialogMessage": "To delete your account, please enter your current password to confirm your identity.",
+    "passwordLabel": "Password"
 }

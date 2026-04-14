@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/colors.dart';
 import '../config/constants.dart';
 import '../models/appointment.dart';
@@ -167,6 +168,68 @@ class PatientAppointmentsTab extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance.collection('appointments').doc(appointment.id).snapshots(),
+                  builder: (context, snapshot) {
+                    int totalDosesCount = 0;
+                    int takenDosesCount = 0;
+                    final String dateKey = "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+
+                    if (appointment.prescriptions.isNotEmpty) {
+                      for (var med in appointment.prescriptions) {
+                        final times = _getDosesPerDay(med.frequency, med.frequencyHours);
+                        totalDosesCount += times;
+                        
+                        if (snapshot.hasData && snapshot.data!.exists) {
+                          final data = snapshot.data!.data() as Map<String, dynamic>?;
+                          if (data != null && data['medicationTracker'] != null) {
+                            final tracker = data['medicationTracker'];
+                            if (tracker[dateKey] != null && tracker[dateKey][med.name] != null) {
+                              final medData = tracker[dateKey][med.name];
+                              final taken = medData['takenDoses'] as List? ?? [];
+                              takenDosesCount += taken.length;
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    if (totalDosesCount == 0) return const SizedBox.shrink();
+
+                    final double overallProgress = totalDosesCount > 0 ? (takenDosesCount / totalDosesCount) : 0.0;
+                    final int percent = (overallProgress * 100).toInt();
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            percent == 100 ? Icons.check_circle_rounded : Icons.pie_chart_rounded,
+                            color: AppColors.primaryBlue,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            "$percent%",
+                            style: TextStyle(
+                              color: AppColors.primaryBlue,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Cairo'
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                 ),
                 _buildStatusChip(context, appointment.status),
               ],
@@ -522,5 +585,20 @@ class PatientAppointmentsTab extends StatelessWidget {
         ],
       ),
     );
+  }
+  int _extractNumber(String text) {
+    final match = RegExp(r'(\d+)').firstMatch(text);
+    return match != null ? int.parse(match.group(1)!) : 1;
+  }
+
+  int _getDosesPerDay(String frequency, int? frequencyHours) {
+    int intervalHours = 24;
+    if (frequencyHours != null && frequencyHours > 0) {
+      intervalHours = frequencyHours;
+    } else {
+      final count = _extractNumber(frequency);
+      if (count > 0) intervalHours = 24 ~/ count;
+    }
+    return 24 ~/ intervalHours;
   }
 }

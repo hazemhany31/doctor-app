@@ -27,8 +27,9 @@ class ChatService {
       merged.addAll(cache2);
       final chats = merged.values.toList();
       chats.sort((a, b) {
-        final aTime = a.lastMessageTime ?? DateTime(2000);
-        final bTime = b.lastMessageTime ?? DateTime(2000);
+        // Use lastMessageTime, fallback to createdAt (for new chats) or now (for pending writes)
+        final aTime = a.lastMessageTime ?? a.createdAt;
+        final bTime = b.lastMessageTime ?? b.createdAt;
         return bTime.compareTo(aTime);
       });
       controller.add(chats);
@@ -107,14 +108,18 @@ class ChatService {
     required String senderName,
     required String senderType,
     required String text,
+    String? imageUrl,
   }) async {
     try {
+      final type = imageUrl != null ? 'image' : 'text';
       final message = Message(
         id: '',
         senderId: senderId,
         senderName: senderName,
         senderType: senderType,
         text: text,
+        imageUrl: imageUrl,
+        type: type,
         sentAt: DateTime.now(),
         isRead: false,
       );
@@ -128,8 +133,17 @@ class ChatService {
 
       // تحديث آخر رسالة وعدد الرسائل غير المقروءة باستخدام merge لتجنب الفشل الصامت
       final chatRef = _firestore.collection('chats').doc(chatId);
+      
+      // Determine display text for last message
+      String lastMsgText = text;
+      if (type == 'image' && text.isEmpty) {
+        lastMsgText = '📷 صورة';
+      } else if (type == 'image') {
+        lastMsgText = '📷 $text';
+      }
+
       final updates = <String, dynamic>{
-        'lastMessage': text,
+        'lastMessage': lastMsgText,
         'lastMessageTime': FieldValue.serverTimestamp(),
       };
 
@@ -280,7 +294,7 @@ class ChatService {
     }
   }
 
-  /// Trigger a notification document for the patient
+  /// Trigger a bilingual notification document for the patient
   Future<void> _triggerPatientNotification({
     required String chatId,
     required String recipientId,
@@ -290,19 +304,39 @@ class ChatService {
     try {
       if (recipientId.isEmpty) return;
 
+      // Fetch patient's language preference from Firestore
+      final bool isArabicPatient = await _getPatientLanguage(recipientId);
+
+      final title = isArabicPatient
+          ? 'رسالة جديدة من د. $senderName'
+          : 'New message from Dr. $senderName';
+
       await _firestore.collection('notifications').add({
         'recipientId': recipientId,
-        'title': 'رسالة جديدة من د. $senderName',
+        'title': title,
         'body': text,
         'type': 'new_message',
         'chatId': chatId,
         'status': 'unread',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      debugPrint('🔔 Chat notification triggered for patient: $recipientId');
+      debugPrint('🔔 Chat notification triggered for patient: $recipientId [isArabic=$isArabicPatient]');
     } catch (e) {
       debugPrint('⚠️ Failed to trigger chat notification: $e');
     }
+  }
+
+  /// جلب لغة المريض من Firestore — إذا لم تُحدَّد يُفترض العربية
+  Future<bool> _getPatientLanguage(String patientId) async {
+    if (patientId.isEmpty) return true;
+    try {
+      final doc = await _firestore.collection('users').doc(patientId).get();
+      if (doc.exists) {
+        final lang = doc.data()?['language']?.toString() ?? 'ar';
+        return lang == 'ar';
+      }
+    } catch (_) {}
+    return true; // default: Arabic
   }
 }
 

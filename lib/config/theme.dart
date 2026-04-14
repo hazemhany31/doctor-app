@@ -238,16 +238,73 @@ class AppTheme {
       scaffoldBackgroundColor: const Color(0xFF0F172A),
 
       // Typography — Cairo for Arabic (Dark mode colors)
-      textTheme: GoogleFonts.cairoTextTheme(ThemeData.dark().textTheme).copyWith(
-        headlineLarge: GoogleFonts.cairo(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white),
-        headlineMedium: GoogleFonts.cairo(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
-        headlineSmall: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
-        titleLarge: GoogleFonts.cairo(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
-        titleMedium: GoogleFonts.cairo(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-        titleSmall: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFFCBD5E1)),
-        bodyLarge: GoogleFonts.cairo(fontSize: 16, color: Colors.white),
-        bodyMedium: GoogleFonts.cairo(fontSize: 14, color: const Color(0xFFE2E8F0)),
-        bodySmall: GoogleFonts.cairo(fontSize: 12, color: const Color(0xFF94A3B8)),
+      // ⚠️ MUST use the same TextTheme(...) constructor pattern as lightTheme
+      // to ensure all styles have inherit:true, making TextStyle.lerp work
+      // correctly during light↔dark theme transitions.
+      textTheme: GoogleFonts.cairoTextTheme(
+        const TextTheme(
+          headlineLarge: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.5,
+          ),
+          headlineMedium: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+          headlineSmall: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+          titleLarge: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+          titleMedium: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+          titleSmall: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFCBD5E1),
+          ),
+          bodyLarge: TextStyle(
+            fontSize: 16,
+            color: Colors.white,
+            height: 1.5,
+          ),
+          bodyMedium: TextStyle(
+            fontSize: 14,
+            color: Color(0xFFE2E8F0),
+            height: 1.5,
+          ),
+          bodySmall: TextStyle(
+            fontSize: 12,
+            color: Color(0xFF94A3B8),
+            height: 1.4,
+          ),
+          labelLarge: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+          labelMedium: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFFCBD5E1),
+          ),
+          labelSmall: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF94A3B8),
+          ),
+        ),
       ),
 
       // AppBar 

@@ -29,6 +29,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
   late TabController _tabController;
   String? _doctorId;
 
+  /// IDs of appointments deleted locally — filtered out instantly from the stream
+  /// to prevent them reappearing before Firestore confirms the deletion.
+  final Set<String> _deletedIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -58,7 +62,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    SystemChrome.setSystemUIOverlayStyle(
+      isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+    );
 
     final tabs = [
       l10n.apptTabAll,
@@ -69,7 +76,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       body: Column(
         children: [
           // ─── Premium Hero Header ───
@@ -255,30 +262,42 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           return _buildEmpty(l10n);
         }
 
-        final appointments = snapshot.data!;
+        // Filter out any locally-deleted appointments immediately
+        final appointments = snapshot.data!
+            .where((a) => !_deletedIds.contains(a.id))
+            .toList();
+
+        if (appointments.isEmpty) return _buildEmpty(l10n);
+
         return ListView.builder(
           padding: const EdgeInsets.only(top: 12, bottom: 100),
+          cacheExtent: 800, // 🚀 Performance Fix (Pre-render cards off-screen)
           itemCount: appointments.length,
           itemBuilder: (context, index) {
-            return AppointmentCard(
-              appointment: appointments[index],
-              showActions: appointments[index].status == AppConstants.appointmentConfirmed || 
-                           appointments[index].status == AppConstants.appointmentPending,
-              onAccept: () => _handleAccept(appointments[index]),
-              onReject: () => _handleReject(appointments[index]),
-              onTap: (appointments[index].status == AppConstants.appointmentPending ||
-                      appointments[index].status == AppConstants.appointmentCancelled)
+            final appt = appointments[index];
+            return RepaintBoundary( // 🚀 Performance Fix (Isolate rendering per card)
+              child: AppointmentCard(
+                key: ValueKey('appt_card_${appt.id}'),
+                appointment: appt,
+                showActions: appt.status == AppConstants.appointmentConfirmed ||
+                             appt.status == AppConstants.appointmentPending,
+                onAccept: () => _handleAccept(appt),
+                onReject: () => _handleReject(appt),
+                onDelete: () => _handleDelete(appt),
+                onTap: (appt.status == AppConstants.appointmentPending ||
+                        appt.status == AppConstants.appointmentCancelled)
                   ? null
                   : () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => AppointmentDetailScreen(
-                            appointment: appointments[index],
+                            appointment: appt,
                           ),
                         ),
                       );
                     },
+              ),
             );
           },
         );
@@ -287,6 +306,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
   }
 
   Widget _buildEmpty(AppLocalizations l10n) {
+    final c = AppColors.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -307,16 +327,49 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
           const SizedBox(height: 16),
           Text(
             l10n.apptNoAppointments,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+              color: c.textSecondary,
               fontFamily: 'Cairo',
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Immediately hides the card by adding to local set, then deletes from Firestore.
+  /// If Firestore fails, removes from local set so the card reappears.
+  Future<void> _handleDelete(Appointment appt) async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _deletedIds.add(appt.id));
+    try {
+      await _firestoreService.deleteAppointment(appt.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(Localizations.localeOf(context).languageCode == 'ar'
+              ? 'تم حذف الموعد'
+              : 'Appointment deleted'),
+          backgroundColor: Colors.grey.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (_) {
+      // Revert: let the card reappear if deletion failed
+      if (mounted) setState(() => _deletedIds.remove(appt.id));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(l10n.apptError),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    }
   }
 
   Future<void> _handleAccept(Appointment appt) async {

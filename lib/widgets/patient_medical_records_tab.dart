@@ -1,10 +1,15 @@
-
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import '../config/colors.dart';
 import '../models/medical_record.dart';
 import '../models/appointment.dart';
 import '../services/firestore_service.dart';
+import '../services/storage_service.dart';
 import '../l10n/app_localizations.dart';
 
 /// تبويب السجلات الطبية للمريض — يعرض الملفات الطبية + تاريخ الوصفات من المواعيد
@@ -13,6 +18,14 @@ class PatientMedicalRecordsTab extends StatelessWidget {
   final FirestoreService _firestoreService = FirestoreService();
 
   PatientMedicalRecordsTab({super.key, required this.patientId});
+
+  Future<void> _openUrl(String? url) async {
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -142,93 +155,121 @@ class PatientMedicalRecordsTab extends StatelessWidget {
       }
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.2)
-                : Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: getFileColor(record.type).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(getFileIcon(record.type),
-                  color: getFileColor(record.type), size: 26),
+    return InkWell(
+      onTap: () => _openUrl(record.url),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.2)
+                  : Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    record.name,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF1E293B),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    Icon(Icons.access_time_rounded,
-                        size: 12,
-                        color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                    const SizedBox(width: 4),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: getFileColor(record.type).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: (['jpg', 'jpeg', 'png'].contains(record.type.toLowerCase()) && record.url.isNotEmpty)
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: CachedNetworkImage(
+                          imageUrl: record.url,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: getFileColor(record.type),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Icon(
+                            getFileIcon(record.type),
+                            color: getFileColor(record.type),
+                            size: 26,
+                          ),
+                        ),
+                      )
+                    : Icon(getFileIcon(record.type),
+                        color: getFileColor(record.type), size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      DateFormat('d MMM yyyy', locale).format(record.date),
+                      record.name,
                       style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              isDark ? Colors.grey[400] : Colors.grey[600]),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.08)
-                            : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF1E293B),
                       ),
-                      child: Text(
-                        record.type.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      Icon(Icons.access_time_rounded,
+                          size: 12,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormat('d MMM yyyy', locale).format(record.date),
                         style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.grey[300] : Colors.grey[700],
+                            fontSize: 12,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          record.type.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.grey[300] : Colors.grey[700],
+                          ),
                         ),
                       ),
-                    ),
-                  ]),
-                ],
+                    ]),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Icon(Icons.open_in_new_rounded,
-                color: AppColors.primaryBlue, size: 20),
-          ],
+              const SizedBox(width: 10),
+              Icon(Icons.open_in_new_rounded,
+                  color: AppColors.primaryBlue, size: 20),
+            ],
+          ),
         ),
       ),
     );
   }
+
 
   Widget _buildPrescriptionCard(BuildContext context, Appointment appointment) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -520,17 +561,50 @@ class _AddMedicalRecordSheet extends StatefulWidget {
 
 class _AddMedicalRecordSheetState extends State<_AddMedicalRecordSheet> {
   final _nameController = TextEditingController();
-  final _urlController = TextEditingController();
-  String _selectedType = 'pdf';
+  final _storageService = StorageService();
+  
+  Uint8List? _fileBytes;
+  String? _fileName;
+  String? _selectedType; // 'pdf', 'jpg', 'png'
   bool _isSaving = false;
-
-  final _types = ['pdf', 'jpg', 'png', 'doc', 'other'];
 
   @override
   void dispose() {
     _nameController.dispose();
-    _urlController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFile(bool isImage) async {
+    try {
+      if (isImage) {
+        final XFile? image = await _storageService.pickImageFromGallery();
+        if (image != null) {
+          final bytes = await image.readAsBytes();
+          final ext = image.path.split('.').last.toLowerCase();
+          setState(() {
+            _fileBytes = bytes;
+            _fileName = image.name;
+            _selectedType = (['jpg', 'jpeg', 'png'].contains(ext)) ? ext : 'jpg';
+          });
+        }
+      } else {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf', 'doc', 'docx'],
+          withData: true,
+        );
+
+        if (result != null && result.files.single.bytes != null) {
+          setState(() {
+            _fileBytes = result.files.single.bytes;
+            _fileName = result.files.single.name;
+            _selectedType = result.files.single.extension?.toLowerCase() ?? 'pdf';
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error picking file: $e');
+    }
   }
 
   Future<void> _save() async {
@@ -542,21 +616,45 @@ class _AddMedicalRecordSheetState extends State<_AddMedicalRecordSheet> {
       return;
     }
 
+    if (_fileBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a file first.')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
+      // 1. Upload to Storage
+      final String contentType = _selectedType == 'pdf' ? 'application/pdf' : 'image/jpeg';
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String uploadFileName = 'record_${timestamp}_${_fileName ?? "file"}';
+
+      final String? downloadUrl = await _storageService.uploadMedicalRecord(
+        patientId: widget.patientId,
+        fileName: uploadFileName,
+        fileBytes: _fileBytes!,
+        contentType: contentType,
+      );
+
+      if (downloadUrl == null) throw Exception('Failed to upload file');
+
+      // 2. Save metadata to Firestore
       final record = MedicalRecord(
         id: '',
         name: name,
-        url: _urlController.text.trim(),
-        type: _selectedType,
+        url: downloadUrl,
+        type: _selectedType ?? 'unknown',
         date: DateTime.now(),
       );
+
       await widget.firestoreService.addMedicalRecord(widget.patientId, record);
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Medical record added!'),
+            content: Text('Medical record added successfully!'),
             backgroundColor: Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
           ),
@@ -588,112 +686,142 @@ class _AddMedicalRecordSheetState extends State<_AddMedicalRecordSheet> {
           topRight: Radius.circular(28),
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                  color: isDark ? Colors.grey[600] : Colors.grey[300],
-                  borderRadius: BorderRadius.circular(4)),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Add Medical Record',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'Cairo',
-              color: isDark ? Colors.white : const Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildField(
-              controller: _nameController,
-              label: 'Record Name',
-              hint: 'e.g. Blood Test Results',
-              icon: Icons.description_rounded,
-              isDark: isDark),
-          const SizedBox(height: 14),
-          _buildField(
-              controller: _urlController,
-              label: 'File URL (optional)',
-              hint: 'https://...',
-              icon: Icons.link_rounded,
-              isDark: isDark),
-          const SizedBox(height: 14),
-          Text('File Type',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.grey[300] : Colors.grey[700])),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            children: _types.map((type) {
-              final isSelected = _selectedType == type;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedType = type),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.primaryBlue
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.07)
-                            : Colors.grey[100]),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primaryBlue
-                          : (isDark
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : Colors.grey[300]!),
-                    ),
-                  ),
-                  child: Text(type.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: isSelected
-                            ? Colors.white
-                            : (isDark ? Colors.grey[300] : Colors.grey[700]),
-                      )),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isSaving ? null : _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[600] : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4)),
               ),
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 22, height: 22,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5))
-                  : const Text('Save Record',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Cairo')),
             ),
+            const SizedBox(height: 20),
+            Text(
+              'Add Medical Record',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Cairo',
+                color: isDark ? Colors.white : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildField(
+                controller: _nameController,
+                label: 'Record Name',
+                hint: 'e.g. Blood Test Results',
+                icon: Icons.description_rounded,
+                isDark: isDark),
+            const SizedBox(height: 20),
+            Text('Select File',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.grey[300] : Colors.grey[700])),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _buildPickerBtn(
+                  label: 'Image',
+                  icon: Icons.image_rounded,
+                  onTap: () => _pickFile(true),
+                  isDark: isDark,
+                  isSelected: _selectedType != 'pdf' && _fileBytes != null,
+                ),
+                const SizedBox(width: 12),
+                _buildPickerBtn(
+                  label: 'PDF / Doc',
+                  icon: Icons.picture_as_pdf_rounded,
+                  onTap: () => _pickFile(false),
+                  isDark: isDark,
+                  isSelected: _selectedType == 'pdf' && _fileBytes != null,
+                ),
+              ],
+            ),
+            if (_fileName != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _fileName!,
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF10B981), fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 22, height: 22,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5))
+                    : const Text('Save Record',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Cairo')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerBtn({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+    required bool isSelected,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryBlue.withValues(alpha: 0.1) : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey[100]),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isSelected ? AppColors.primaryBlue : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey[300]!)),
           ),
-        ],
+          child: Column(
+            children: [
+              Icon(icon, color: isSelected ? AppColors.primaryBlue : (isDark ? Colors.grey[400] : Colors.grey[600])),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(fontSize: 12, color: isSelected ? AppColors.primaryBlue : (isDark ? Colors.grey[400] : Colors.grey[600]))),
+            ],
+          ),
+        ),
       ),
     );
   }

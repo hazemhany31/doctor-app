@@ -77,7 +77,10 @@ class ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    SystemChrome.setSystemUIOverlayStyle(
+      isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+    );
 
     if (_isLoading) {
       return const Scaffold(
@@ -89,7 +92,7 @@ class ProfileScreenState extends State<ProfileScreen> {
 
     if (_doctor == null) {
       return Scaffold(
-        backgroundColor: AppColors.scaffoldBackground,
+        backgroundColor: AppColors.of(context).scaffoldBg,
         body: Column(
           children: [
             _buildHeader(l10n, null),
@@ -119,7 +122,7 @@ class ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _buildHeader(l10n, _doctor)),
@@ -230,14 +233,16 @@ class ProfileScreenState extends State<ProfileScreen> {
                   // Avatar
                   CircleAvatar(
                     radius: 48,
-                    backgroundImage: doctor?.photoUrl != null
-                        ? NetworkImage(doctor!.photoUrl!)
+                    backgroundImage: (doctor?.photoUrl != null && doctor!.photoUrl!.isNotEmpty)
+                        ? NetworkImage(doctor.photoUrl!)
                         : null,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                    child: doctor?.photoUrl == null
+                    child: (doctor?.photoUrl == null || doctor!.photoUrl!.isEmpty)
                         ? const Icon(Icons.person_rounded, size: 48, color: AppColors.primary)
                         : null,
                   ),
+
+
                 ],
               ),
               const SizedBox(height: 16),
@@ -414,10 +419,10 @@ class ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.of(context).cardBg,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: AppColors.cardShadow,
-          border: Border.all(color: AppColors.border),
+          boxShadow: AppColors.of(context).cardShadow,
+          border: Border.all(color: AppColors.of(context).border),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
@@ -452,16 +457,18 @@ class ProfileScreenState extends State<ProfileScreen> {
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
-                                    color: item.isDestructive ? AppColors.error : AppColors.textPrimary,
+                                    color: item.isDestructive
+                                        ? AppColors.error
+                                        : AppColors.of(context).textPrimary,
                                     fontFamily: 'Cairo',
                                   ),
                                 ),
                                 if (item.subtitle != null)
                                   Text(
                                     item.subtitle!,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: AppColors.textHint,
+                                      color: AppColors.of(context).textHint,
                                       fontFamily: 'Cairo',
                                     ),
                                   ),
@@ -469,13 +476,14 @@ class ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           if (!item.isDestructive)
-                            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textHint),
+                            Icon(Icons.arrow_forward_ios_rounded,
+                                size: 14, color: AppColors.of(context).textHint),
                         ],
                       ),
                     ),
                   ),
                   if (i < items.length - 1)
-                    const Divider(height: 1, indent: 70, color: AppColors.border),
+                    Divider(height: 1, indent: 70, color: AppColors.of(context).border),
                 ],
               );
             }).toList(),
@@ -490,13 +498,14 @@ class ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required List<Widget> children,
   }) {
+    final c = AppColors.of(context);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: c.cardBg,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: AppColors.cardShadow,
-        border: Border.all(color: AppColors.border),
+        boxShadow: c.cardShadow,
+        border: Border.all(color: c.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,7 +519,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: AppColors.glassTeal,
+                    color: c.glassTeal,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, size: 18, color: AppColors.primary),
@@ -518,17 +527,17 @@ class ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(width: 10),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+                    color: c.textPrimary,
                     fontFamily: 'Cairo',
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: c.border),
           ...children,
         ],
       ),
@@ -536,6 +545,7 @@ class ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
+    final c = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -545,7 +555,7 @@ class ProfileScreenState extends State<ProfileScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: AppColors.glassTeal,
+              color: c.glassTeal,
               borderRadius: BorderRadius.circular(9),
             ),
             child: Icon(icon, size: 16, color: AppColors.primary),
@@ -557,9 +567,9 @@ class ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textHint,
+                    color: c.textHint,
                     fontFamily: 'Cairo',
                     fontWeight: FontWeight.w500,
                   ),
@@ -567,9 +577,9 @@ class ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    color: AppColors.textPrimary,
+                    color: c.textPrimary,
                     fontFamily: 'Cairo',
                     fontWeight: FontWeight.w600,
                   ),

@@ -197,7 +197,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.scaffoldBackground,
+        backgroundColor: AppColors.of(context).scaffoldBg,
         body: Column(
           children: [
             _buildLoadingHeader(),
@@ -241,7 +241,7 @@ class DashboardScreenState extends State<DashboardScreen> {
         l10n.dashErrorNoDoctor.split('\n').first,
       );
       return Scaffold(
-        backgroundColor: AppColors.scaffoldBackground,
+        backgroundColor: AppColors.of(context).scaffoldBg,
         body: Column(
           children: [
             _buildLoadingHeader(),
@@ -278,10 +278,10 @@ class DashboardScreenState extends State<DashboardScreen> {
                             ? l10n.dashErrorNoDoctor
                             : _errorMessage!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                          color: AppColors.of(context).textPrimary,
                         ),
                       ),
                       const SizedBox(height: 28),
@@ -315,16 +315,16 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
 
     if (_doctor == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.scaffoldBackground,
-        body: Center(
+      return Scaffold(
+        backgroundColor: AppColors.of(context).scaffoldBg,
+        body: const Center(
           child: CircularProgressIndicator(color: AppColors.primary),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: _loadData,
@@ -413,15 +413,15 @@ class DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
-                  Stack(
+                    Stack(
                     children: [
                       CircleAvatar(
                         radius: 34,
-                        backgroundImage: _doctor!.photoUrl != null
+                        backgroundImage: (_doctor!.photoUrl != null && _doctor!.photoUrl!.isNotEmpty)
                             ? CachedNetworkImageProvider(_doctor!.photoUrl!)
                             : null,
                         backgroundColor: Colors.white.withValues(alpha: 0.15),
-                        child: _doctor!.photoUrl == null
+                        child: (_doctor!.photoUrl == null || _doctor!.photoUrl!.isEmpty)
                             ? Icon(
                                 Icons.person_rounded,
                                 size: 34,
@@ -707,6 +707,7 @@ class DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStatCard(
       String label, String value, IconData icon, Color color, Color bg, VoidCallback? onTap) {
+    final c = AppColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -715,10 +716,10 @@ class DashboardScreenState extends State<DashboardScreen> {
           horizontal: 10,
         ),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: c.cardBg,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: AppColors.cardShadow,
-          border: Border.all(color: AppColors.border),
+          boxShadow: c.cardShadow,
+          border: Border.all(color: c.border),
         ),
         child: Column(
           children: [
@@ -746,7 +747,7 @@ class DashboardScreenState extends State<DashboardScreen> {
               label,
               style: TextStyle(
                 fontSize: 10,
-                color: AppColors.textSecondary,
+                color: c.textSecondary,
                 fontFamily: 'Cairo',
                 fontWeight: FontWeight.w500,
               ),
@@ -759,6 +760,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildSectionTitle(String title, {Widget? trailing}) {
+    final c = AppColors.of(context);
     return Row(
       children: [
         Container(
@@ -773,10 +775,10 @@ class DashboardScreenState extends State<DashboardScreen> {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: c.textPrimary,
               fontFamily: 'Cairo',
             ),
           ),
@@ -826,31 +828,30 @@ class DashboardScreenState extends State<DashboardScreen> {
               subtitle: l10n.dashNoAppointmentsSub,
             )
           else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: appointments.length > 5 ? 5 : appointments.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                return AppointmentCard(
-                  appointment: appointments[index],
-                  showActions: appointments[index].status == AppConstants.appointmentPending,
-                  onAccept: () => _handleAcceptAppointment(appointments[index]),
-                  onReject: () => _handleRejectAppointment(appointments[index]),
-                  onTap: (appointments[index].status == AppConstants.appointmentPending ||
-                          appointments[index].status == AppConstants.appointmentCancelled)
-                      ? null
-                      : () {
-                          Navigator.of(context, rootNavigator: true).push(
-                            MaterialPageRoute(
-                              builder: (context) => AppointmentDetailScreen(
-                                appointment: appointments[index],
+            Column(
+              children: appointments.take(5).map((appt) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: AppointmentCard(
+                    appointment: appt,
+                    showActions: appt.status == AppConstants.appointmentPending,
+                    onAccept: () => _handleAcceptAppointment(appt),
+                    onReject: () => _handleRejectAppointment(appt),
+                    onTap: (appt.status == AppConstants.appointmentPending ||
+                            appt.status == AppConstants.appointmentCancelled)
+                        ? null
+                        : () {
+                            Navigator.of(context, rootNavigator: true).push(
+                              MaterialPageRoute(
+                                builder: (context) => AppointmentDetailScreen(
+                                  appointment: appt,
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                  ),
                 );
-              },
+              }).toList(),
             ),
         ],
       ),
@@ -867,9 +868,9 @@ class DashboardScreenState extends State<DashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.of(context).cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.of(context).border),
       ),
       child: Column(
         children: [

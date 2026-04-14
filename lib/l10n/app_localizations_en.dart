@@ -303,6 +303,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatTitle => 'Messages';
 
   @override
+  String get chatSubtitle => 'Message your patients directly';
+
+  @override
   String get chatErrorTitle => 'Error Loading Data';
 
   @override
@@ -562,4 +565,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get apptDetailNotesHint => 'Add notes (optional)';
+
+  @override
+  String get settingsDarkTitle => 'Dark Mode';
+
+  @override
+  String get settingsLightTitle => 'Light Mode';
+
+  @override
+  String get settingsDarkSub => 'Tap to switch to Light Mode';
+
+  @override
+  String get settingsLightSub => 'Tap to switch to Dark Mode';
+
+  @override
+  String get settingsAccountSection => 'Account Management';
+
+  @override
+  String get settingsDeleteAccountTitle => 'Delete Account Permanently';
+
+  @override
+  String get settingsDeleteAccountSub =>
+      'All your data and records will be permanently deleted';
+
+  @override
+  String get deleteDialogTitle => 'Confirm Account Deletion';
+
+  @override
+  String get deleteDialogMessage =>
+      'Are you sure you want to delete your account permanently? This action is irreversible, and all your patient data and records will be completely erased from the system in compliance with privacy policies.';
+
+  @override
+  String get deleteDialogConfirm => 'Confirm & Delete';
+
+  @override
+  String get reauthDialogTitle => 'Confirm Identity';
+
+  @override
+  String get reauthDialogMessage =>
+      'To delete your account, please enter your current password to confirm your identity.';
+
+  @override
+  String get passwordLabel => 'Password';
 }

@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../config/colors.dart';
 import '../../models/patient.dart';
@@ -21,7 +21,8 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
   final _searchController = TextEditingController();
-
+  
+  Timer? _debounce;
   String? _doctorId;
   String _searchQuery = '';
 
@@ -42,8 +43,18 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
     }
   }
 
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _searchQuery = query.toLowerCase();
+      });
+    });
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -55,24 +66,24 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
       appBar: AppBar(
         title: Text(l10n.ptsTitle),
         backgroundColor: AppColors.primaryBlue,
+        elevation: 0,
       ),
       body: Column(
         children: [
           // شريط البحث
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: l10n.ptsSearchHint,
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               ),
-              onChanged: (value) {
-                setState(() => _searchQuery = value.toLowerCase());
-              },
+              onChanged: _onSearchChanged,
             ),
           ),
           // قائمة المرضى
@@ -93,15 +104,15 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.people_outline,
                                 size: 64,
                                 color: AppColors.textHint,
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                               Text(
                                 l10n.ptsNoPatients,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 16,
                                   color: AppColors.textSecondary,
                                 ),
@@ -127,26 +138,31 @@ class _PatientsListScreenState extends State<PatientsListScreen> {
                         return Center(
                           child: Text(
                             l10n.ptsNoResults,
-                            style: TextStyle(color: AppColors.textSecondary),
+                            style: const TextStyle(color: AppColors.textSecondary),
                           ),
                         );
                       }
 
                       return ListView.builder(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 20),
+                        cacheExtent: 800, // 🚀 Performance Fix
                         itemCount: patients.length,
                         itemBuilder: (context, index) {
-                          return PatientCard(
-                            patient: patients[index],
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PatientDetailsScreen(
-                                    patient: patients[index],
+                          return RepaintBoundary( // 🚀 Performance Fix
+                            child: PatientCard(
+                              patient: patients[index],
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PatientDetailsScreen(
+                                      patient: patients[index],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           );
                         },
                       );

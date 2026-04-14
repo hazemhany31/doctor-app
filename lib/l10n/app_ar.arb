@@ -131,6 +131,7 @@
     "profDiagnosticSub": "لتحديد مشاكل البيانات",
     "profHelpSupport": "المساعدة والدعم",
     "chatTitle": "الرسائل",
+    "chatSubtitle": "راسل مرضاك مباشرة",
     "chatErrorTitle": "خطأ في تحميل البيانات",
     "chatErrorNoDoctor": "لم يتم العثور على معلومات الدكتور",
     "chatErrorPrefix": "حدث خطأ: ",
@@ -232,5 +233,18 @@
     "apptDetailType": "النوع",
     "apptDetailStatus": "الحالة",
     "apptDetailNotes": "ملاحظات الدكتور",
-    "apptDetailNotesHint": "أضف ملاحظاتك (اختياري)"
+    "apptDetailNotesHint": "أضف ملاحظاتك (اختياري)",
+    "settingsDarkTitle": "الوضع الداكن",
+    "settingsLightTitle": "الوضع الفاتح",
+    "settingsDarkSub": "اضغط للتبديل للوضع الفاتح",
+    "settingsLightSub": "اضغط للتبديل للوضع الداكن",
+    "settingsAccountSection": "إدارة الحساب",
+    "settingsDeleteAccountTitle": "حذف الحساب نهائياً",
+    "settingsDeleteAccountSub": "سيتم مسح جميع بياناتك وسجلاتك للأبد",
+    "deleteDialogTitle": "تأكيد حذف الحساب",
+    "deleteDialogMessage": "هل أنت متأكد أنك تريد حذف حسابك نهائياً؟ هذا الإجراء لا يمكن التراجع عنه، وسيتم مسح جميع بيانات مرضاك وسجلاتك من النظام بالكامل تماشياً مع سياسات الخصوصية.",
+    "deleteDialogConfirm": "الموافقة والحذف",
+    "reauthDialogTitle": "تأكيد الهوية",
+    "reauthDialogMessage": "لحذف الحساب، يرجى إدخال كلمة المرور الحالية لتأكيد هويتك.",
+    "passwordLabel": "كلمة المرور"
 }

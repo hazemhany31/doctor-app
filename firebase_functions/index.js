@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 admin.initializeApp();
 
@@ -126,5 +126,63 @@ exports.sendNotificationOnCreate = functions.firestore
         fcmError: error.message,
         fcmTimestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
+    }
+  });
+
+/**
+ * Syncs users with role 'doctor' to the 'doctors' collection.
+ */
+exports.syncDoctorProfile = functions.firestore
+  .document("users/{userId}")
+  .onWrite(async (change, context) => {
+    const userId = context.params.userId;
+    const newData = change.after.exists ? change.after.data() : null;
+
+    // If the document was deleted or role is not doctor, skip
+    if (!newData || newData.role !== "doctor") {
+      return null;
+    }
+
+    console.log(`Syncing doctor profile for: ${userId}`);
+    const doctorRef = admin.firestore().collection("doctors").doc(userId);
+
+    try {
+      const doctorDoc = await doctorRef.get();
+
+      const syncData = {
+        userId: userId,
+        name: newData.name || "دكتور جديد",
+        nameAr: newData.name || "دكتور جديد",
+        email: newData.email || "",
+        phoneNumber: newData.phoneNumber || "",
+        photoUrl: newData.photoUrl || "",
+        image: newData.photoUrl || "",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      if (!doctorDoc.exists) {
+        // Create new doctor profile with defaults
+        console.log(`Creating new profile for ${userId}`);
+        return doctorRef.set({
+          ...syncData,
+          specialty: "General",
+          specialtyAr: "عام",
+          rating: "4.8",
+          reviews: 0,
+          patients: "0",
+          experience: "1",
+          about: "لا توجد تفاصيل حالياً.",
+          aboutAr: "لا توجد تفاصيل حالياً.",
+          isActive: true,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Update existing basic info
+        console.log(`Updating existing profile for ${userId}`);
+        return doctorRef.update(syncData);
+      }
+    } catch (error) {
+      console.error(`Error syncing doctor profile for ${userId}:`, error);
+      return null;
     }
   });

@@ -29,6 +29,7 @@ class AppointmentDetailScreen extends StatefulWidget {
 
 class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
   final _firestoreService = FirestoreService();
+  final _authService = AuthService();
   final _notesController = TextEditingController();
 
   // قائمة الأدوية
@@ -146,6 +147,9 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
           )
           .toList();
 
+      // جلب الـ user ID علشان نكتب الـ fees في الـ appointment
+      final currentUserId = _authService.currentUser?.uid;
+
       await _firestoreService.updateAppointmentDetails(
         widget.appointment.id,
         prescriptions: prescriptionMaps,
@@ -153,6 +157,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
             ? null
             : _notesController.text.trim(),
         status: AppConstants.appointmentCompleted,
+        doctorId: currentUserId,
       );
 
       if (mounted) {
@@ -215,7 +220,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -251,79 +256,106 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
   }
 
   Future<void> _exportPdf() async {
-    final appt = widget.appointment;
-    final pdf = pw.Document();
+    // 🚀 Performance Fix: Show loading overlay to prevent UI freeze feeling
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
 
-    final font = await PdfGoogleFonts.cairoRegular();
-    final boldFont = await PdfGoogleFonts.cairoBold();
+    try {
+      final appt = widget.appointment;
+      final pdf = pw.Document();
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        theme: pw.ThemeData.withFont(
-          base: font,
-          bold: boldFont,
-        ),
-        build: (pw.Context context) {
-          return pw.Directionality(
-            textDirection: pw.TextDirection.rtl,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Header(
-                  level: 0,
-                  child: pw.Text('الوصفة الطبية (Prescription)', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-                ),
-                pw.SizedBox(height: 20),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('الطبيب: ${appt.doctorName ?? ''}', style: const pw.TextStyle(fontSize: 16)),
-                    pw.Text('التاريخ: ${DateFormat('yyyy-MM-dd').format(appt.dateTime)}', style: const pw.TextStyle(fontSize: 14)),
-                  ]
-                ),
-                pw.Text('المريض: ${appt.patientName ?? ''}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-                pw.Divider(),
-                pw.SizedBox(height: 10),
-                pw.Text('الأدوية:', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.blue600)),
-                pw.SizedBox(height: 10),
-                ..._medicines.map((m) {
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.only(bottom: 15, right: 10),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('- ${m.nameController.text}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                        pw.Text('  الجرعة: ${m.dosageController.text}', style: const pw.TextStyle(fontSize: 14)),
-                        pw.Text('  التكرار: ${m.frequencyController.text}', style: const pw.TextStyle(fontSize: 14)),
-                        pw.Text('  المدة: ${m.durationController.text}', style: const pw.TextStyle(fontSize: 14)),
-                      ]
-                    )
-                  );
-                }),
-                if (_notesController.text.isNotEmpty) ...[
+      // Defer font loading to microtask to allow UI to render the loading indicator
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      final font = await PdfGoogleFonts.cairoRegular();
+      final boldFont = await PdfGoogleFonts.cairoBold();
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          theme: pw.ThemeData.withFont(
+            base: font,
+            bold: boldFont,
+          ),
+          build: (pw.Context context) {
+            return pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Header(
+                    level: 0,
+                    child: pw.Text('الوصفة الطبية (Prescription)', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                  ),
                   pw.SizedBox(height: 20),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('الطبيب: ${appt.doctorName ?? ''}', style: const pw.TextStyle(fontSize: 16)),
+                      pw.Text('التاريخ: ${DateFormat('yyyy-MM-dd').format(appt.dateTime)}', style: const pw.TextStyle(fontSize: 14)),
+                    ]
+                  ),
+                  pw.Text('المريض: ${appt.patientName ?? ''}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
                   pw.Divider(),
-                  pw.Text('ملاحظات:', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue600)),
-                  pw.Text(_notesController.text, style: const pw.TextStyle(fontSize: 14)),
-                ]
-              ],
-            ),
-          );
-        },
-      ),
-    );
+                  pw.SizedBox(height: 10),
+                  pw.Text('الأدوية:', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: PdfColors.blue600)),
+                  pw.SizedBox(height: 10),
+                  ..._medicines.map((m) {
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 15, right: 10),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('- ${m.nameController.text}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                          pw.Text('  الجرعة: ${m.dosageController.text}', style: const pw.TextStyle(fontSize: 14)),
+                          pw.Text('  التكرار: ${m.frequencyController.text}', style: const pw.TextStyle(fontSize: 14)),
+                          pw.Text('  المدة: ${m.durationController.text}', style: const pw.TextStyle(fontSize: 14)),
+                        ]
+                      )
+                    );
+                  }),
+                  if (_notesController.text.isNotEmpty) ...[
+                    pw.SizedBox(height: 20),
+                    pw.Divider(),
+                    pw.Text('ملاحظات:', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue600)),
+                    pw.Text(_notesController.text, style: const pw.TextStyle(fontSize: 14)),
+                  ]
+                ],
+              ),
+            );
+          },
+        ),
+      );
 
-    final output = await getTemporaryDirectory();
-    final file = File('${output.path}/prescription_${appt.id}.pdf');
-    await file.writeAsBytes(await pdf.save());
+      final output = await getTemporaryDirectory();
+      final file = File('${output.path}/prescription_${appt.id}.pdf');
+      
+      // Save it in isolated thread so it doesn't freeze the UI 
+      final bytes = await pdf.save();
+      await file.writeAsBytes(bytes);
 
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path)],
-        text: 'الوصفة الطبية الخاصة بك المرفقة كملف PDF.',
-      ),
-    );
+      if (mounted) Navigator.pop(context); // hide loading
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'الوصفة الطبية الخاصة بك المرفقة كملف PDF.',
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // hide loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء تصدير الملف: $e')),
+        );
+      }
+    }
+
   }
 
   @override
@@ -338,7 +370,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     ).format(appt.dateTime);
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: AppColors.of(context).scaffoldBg,
       body: CustomScrollView(
         slivers: [
           // ─── Header ───
@@ -408,10 +440,73 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ─── Appointment DateTime ───
-                  _CompactInfoRow(
-                    icon: Icons.event_note_rounded,
-                    label: l10n.apptDetailDate,
-                    value: dateStr,
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance.collection('appointments').doc(appt.id).snapshots(),
+                    builder: (context, snapshot) {
+                      int totalDosesCount = 0;
+                      int takenDosesCount = 0;
+                      final String dateKey = "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+
+                      if (appt.prescriptions.isNotEmpty) {
+                        for (var med in appt.prescriptions) {
+                          final times = _getDosesPerDay(med.frequency, med.frequencyHours);
+                          totalDosesCount += times;
+                          
+                          if (snapshot.hasData && snapshot.data!.exists) {
+                            final data = snapshot.data!.data() as Map<String, dynamic>?;
+                            if (data != null && data['medicationTracker'] != null) {
+                              final tracker = data['medicationTracker'];
+                              if (tracker[dateKey] != null && tracker[dateKey][med.name] != null) {
+                                final medData = tracker[dateKey][med.name];
+                                final taken = medData['takenDoses'] as List? ?? [];
+                                takenDosesCount += taken.length;
+                              }
+                            }
+                          }
+                        }
+                      }
+
+                      final double overallProgress = totalDosesCount > 0 ? (takenDosesCount / totalDosesCount) : 0.0;
+                      final int percent = (overallProgress * 100).toInt();
+
+                      return Column(
+                        children: [
+                          _CompactInfoRow(
+                            icon: Icons.event_note_rounded,
+                            label: l10n.apptDetailDate,
+                            value: dateStr,
+                            trailing: totalDosesCount > 0 ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    percent == 100 ? Icons.check_circle_rounded : Icons.pie_chart_rounded,
+                                    color: AppColors.primary,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "$percent%",
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      fontFamily: 'Cairo'
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ) : null,
+                          ),
+                        ],
+                      );
+                    }
                   ),
 
                   const SizedBox(height: 16),
@@ -643,6 +738,21 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     );
   }
 
+  int _extractNumber(String text) {
+    final match = RegExp(r'(\d+)').firstMatch(text);
+    return match != null ? int.parse(match.group(1)!) : 1;
+  }
+
+  int _getDosesPerDay(String frequency, int? frequencyHours) {
+    int intervalHours = 24;
+    if (frequencyHours != null && frequencyHours > 0) {
+      intervalHours = frequencyHours;
+    } else {
+      final count = _extractNumber(frequency);
+      if (count > 0) intervalHours = 24 ~/ count;
+    }
+    return 24 ~/ intervalHours;
+  }
 }
 
 // ─────────────────────────────── Helpers ────────────────────────────────────
@@ -736,6 +846,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Row(
       children: [
         Container(
@@ -753,7 +864,7 @@ class _SectionHeader extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
+            color: c.textPrimary,
             fontFamily: 'Cairo',
           ),
         ),
@@ -796,15 +907,18 @@ class _CompactInfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Widget? trailing;
 
   const _CompactInfoRow({
     required this.icon,
     required this.label,
     required this.value,
+    this.trailing,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -822,24 +936,28 @@ class _CompactInfoRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textHint,
+                    color: c.textHint,
                     fontFamily: 'Cairo',
                   ),
                 ),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: c.textPrimary,
                     fontFamily: 'Cairo',
                   ),
                 ),
               ],
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing!,
+          ],
         ],
       ),
     );
@@ -853,12 +971,13 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: c.cardBg,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: AppColors.cardShadow,
-        border: Border.all(color: AppColors.border),
+        boxShadow: c.cardShadow,
+        border: Border.all(color: c.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -886,20 +1005,15 @@ class _MedicineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final c = AppColors.of(context);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: c.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: c.border),
+        boxShadow: c.cardShadow,
       ),
       child: Column(
         children: [
@@ -1093,9 +1207,9 @@ class _MiniField extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.scaffoldBackground,
+        color: AppColors.of(context).surfaceBg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.of(context).border),
       ),
       child: Row(
         children: [

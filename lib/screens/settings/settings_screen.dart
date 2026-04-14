@@ -24,10 +24,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final localeProvider = Provider.of<LocaleProvider>(context);
     final isEnglish = localeProvider.locale.languageCode == 'en';
+    final isDark    = localeProvider.themeMode == ThemeMode.dark ||
+        (localeProvider.themeMode == ThemeMode.system &&
+            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
     final l10n = AppLocalizations.of(context)!;
+    final c = AppColors.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: c.scaffoldBg,
       body: CustomScrollView(
         slivers: [
           // Header
@@ -122,6 +126,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     _SettingsDivider(),
+                    // ─── Dark Mode Toggle ─────────────────────────────────
+                    _SettingsTile(
+                      icon: isDark
+                          ? Icons.dark_mode_rounded
+                          : Icons.light_mode_rounded,
+                      iconColor: isDark
+                          ? const Color(0xFF818CF8)
+                          : const Color(0xFFF59E0B),
+                      title: isDark ? l10n.settingsDarkTitle : l10n.settingsLightTitle,
+                      subtitle: isDark
+                          ? l10n.settingsDarkSub
+                          : l10n.settingsLightSub,
+                      trailing: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child: Switch(
+                          key: ValueKey(isDark),
+                          value: isDark,
+                          onChanged: (v) {
+                            localeProvider.setThemeMode(
+                              v ? ThemeMode.dark : ThemeMode.light,
+                            );
+                          },
+                          activeThumbColor: const Color(0xFF818CF8),
+                          activeTrackColor:
+                              const Color(0xFF818CF8).withValues(alpha: 0.35),
+                          inactiveThumbColor: const Color(0xFFF59E0B),
+                          inactiveTrackColor:
+                              const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                          thumbIcon: WidgetStateProperty.resolveWith(
+                            (states) => Icon(
+                              states.contains(WidgetState.selected)
+                                  ? Icons.dark_mode_rounded
+                                  : Icons.light_mode_rounded,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    _SettingsDivider(),
                     _SettingsTile(
                       icon: Icons.notifications_rounded,
                       iconColor: AppColors.warning,
@@ -134,6 +179,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (v) =>
                             setState(() => _notificationsEnabled = v),
                         activeThumbColor: AppColors.primary,
+                        activeTrackColor:
+                            AppColors.primary.withValues(alpha: 0.35),
                       ),
                     ),
                   ]),
@@ -220,15 +267,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SizedBox(height: 20),
 
                   // === حسابي ===
-                  _buildSectionHeader('إدارة الحساب'),
+                  _buildSectionHeader(l10n.settingsAccountSection),
                   SizedBox(height: 8),
                   _buildCard([
                     _SettingsTile(
                       icon: Icons.delete_forever_rounded,
                       iconColor: AppColors.error,
-                      title: 'حذف الحساب نهائياً',
-                      subtitle: 'سيتم مسح جميع بياناتك وسجلاتك للأبد',
-                      onTap: () => _confirmDeleteAccount(context),
+                      title: l10n.settingsDeleteAccountTitle,
+                      subtitle: l10n.settingsDeleteAccountSub,
+                      onTap: () => _confirmDeleteAccount(context, l10n),
                       trailing: Icon(
                         Icons.chevron_right_rounded,
                         color: AppColors.textHint,
@@ -246,7 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _confirmDeleteAccount(BuildContext context) {
+  void _confirmDeleteAccount(BuildContext context, AppLocalizations l10n) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -254,25 +301,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.error),
             SizedBox(width: 8),
-            Text('تأكيد حذف الحساب', style: TextStyle(fontFamily: 'Cairo')),
+            Text(l10n.deleteDialogTitle, style: TextStyle(fontFamily: 'Cairo')),
           ],
         ),
         content: Text(
-          'هل أنت متأكد أنك تريد حذف حسابك نهائياً؟ هذا الإجراء لا يمكن التراجع عنه، وسيتم مسح جميع بيانات مرضاك وسجلاتك من النظام بالكامل تماشياً مع سياسات الخصوصية.',
+          l10n.deleteDialogMessage,
           style: TextStyle(fontFamily: 'Cairo', fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('إلغاء', style: TextStyle(color: AppColors.textSecondary, fontFamily: 'Cairo')),
+            child: Text(l10n.profCancel, style: TextStyle(color: AppColors.textSecondary, fontFamily: 'Cairo')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () async {
               Navigator.pop(ctx);
-              _showReauthDialog(context); // 항상 كلمه السر اوالاً لضمان حداثة الجلسة (ALWAYS ask for password first)
+              _showReauthDialog(context, l10n); // ALWAYS ask for password first
             },
-            child: Text('الموافقة والحذف', style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
+            child: Text(l10n.deleteDialogConfirm, style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
           ),
         ],
       ),
@@ -313,7 +360,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final errorMsg = e.toString();
       if (errorMsg.contains('REQUIRES_REAUTH')) {
         // إذا طلب النظام إعادة المصادقة، نظهر نافذة كلمة المرور
-        if (context.mounted) _showReauthDialog(context);
+        if (context.mounted) _showReauthDialog(context, AppLocalizations.of(context)!);
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -327,25 +374,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showReauthDialog(BuildContext context) {
+  void _showReauthDialog(BuildContext context, AppLocalizations l10n) {
     final passwordController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد الهوية', style: TextStyle(fontFamily: 'Cairo')),
+        title: Text(l10n.reauthDialogTitle, style: TextStyle(fontFamily: 'Cairo')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'لحذف الحساب، يرجى إدخال كلمة المرور الحالية لتأكيد هويتك.',
+            Text(
+              l10n.reauthDialogMessage,
               style: TextStyle(fontFamily: 'Cairo', fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'كلمة المرور',
+              decoration: InputDecoration(
+                labelText: l10n.passwordLabel,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -354,7 +401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
+            child: Text(l10n.profCancel, style: TextStyle(fontFamily: 'Cairo')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
@@ -364,7 +411,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Navigator.pop(ctx);
               _performDeleteAccount(context, password: pwd);
             },
-            child: const Text('تأكيد وحذف', style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
+            child: Text(l10n.deleteDialogConfirm, style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
           ),
         ],
       ),
@@ -388,7 +435,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary,
+            color: AppColors.of(context).textSecondary,
             fontFamily: 'Cairo',
           ),
         ),
@@ -397,12 +444,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildCard(List<Widget> children) {
+    final c = AppColors.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: c.cardBg,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: AppColors.cardShadow,
-        border: Border.all(color: AppColors.border),
+        boxShadow: c.cardShadow,
+        border: Border.all(color: c.border),
       ),
       child: Column(children: children),
     );
@@ -442,6 +490,7 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return ListTile(
       onTap: onTap,
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -459,7 +508,7 @@ class _SettingsTile extends StatelessWidget {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: c.textPrimary,
           fontFamily: 'Cairo',
         ),
       ),
@@ -467,7 +516,7 @@ class _SettingsTile extends StatelessWidget {
         subtitle,
         style: TextStyle(
           fontSize: 12,
-          color: AppColors.textSecondary,
+          color: c.textSecondary,
           fontFamily: 'Cairo',
         ),
       ),
@@ -481,7 +530,7 @@ class _SettingsDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(left: 70),
-      child: Divider(height: 1, color: AppColors.border),
+      child: Divider(height: 1, color: AppColors.of(context).divider),
     );
   }
 }

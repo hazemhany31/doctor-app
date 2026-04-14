@@ -2,6 +2,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../config/colors.dart';
 import '../services/storage_service.dart';
 import '../utils/permission_helper.dart';
@@ -36,7 +37,7 @@ class _ProfileImagePickerState extends State<ProfileImagePicker> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    // التحقق من الصلاحيات أولاً مع شرح مسبق للمستخدم (Compliance)
+    // Request permissions first using our helper
     bool hasPermission = false;
     if (source == ImageSource.camera) {
       hasPermission = await PermissionHelper.requestCameraPermission(context);
@@ -61,7 +62,7 @@ class _ProfileImagePickerState extends State<ProfileImagePicker> {
         if (fileSizeMB > 5) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
+              const SnackBar(
                 content: Text(
                   'حجم الصورة كبير جداً. يرجى اختيار صورة أصغر من 5 ميجابايت',
                 ),
@@ -84,14 +85,16 @@ class _ProfileImagePickerState extends State<ProfileImagePicker> {
       debugPrint('❌ خطأ في اختيار الصورة: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('حدث خطأ في اختيار الصورة'),
             backgroundColor: AppColors.error,
           ),
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -189,15 +192,17 @@ class _ProfileImagePickerState extends State<ProfileImagePicker> {
                                 fit: BoxFit.cover,
                               )
                             : _imageUrl != null
-                            ? Image.network(
-                                _imageUrl!,
+                            ? CachedNetworkImage(
+                                imageUrl: _imageUrl!,
                                 width: 140,
                                 height: 140,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return _buildPlaceholder();
-                                },
+                                placeholder: (context, url) => const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                errorWidget: (context, url, error) => _buildPlaceholder(),
                               )
+
                             : _buildPlaceholder(),
                       ),
 
