@@ -39,9 +39,9 @@ dependencies:
   
   # Firebase - Updated to latest compatible versions
   firebase_core: ^4.6.0
-  firebase_auth: ^6.3.0
-  cloud_firestore: ^6.2.0
-  firebase_storage: ^13.2.0
+  firebase_auth: ^6.4.0
+  cloud_firestore: ^6.3.0
+  firebase_storage: ^13.3.0
   
   # State Management
   provider: ^6.1.1
@@ -56,18 +56,18 @@ dependencies:
   # Utilities
   intl: ^0.20.2  # For date formatting & Arabic support
   image_picker: ^1.0.7
-  file_picker: ^10.3.10
+  file_picker: ^11.0.2
   url_launcher: ^6.3.0
   shared_preferences: ^2.5.4
-  firebase_messaging: ^16.1.3
+  firebase_messaging: ^16.2.0
   flutter_local_notifications: ^21.0.0
   pdf: ^3.12.0
   printing: ^5.14.3
   path_provider: ^2.1.5
-  share_plus: ^12.0.1
-  firebase_app_check: ^0.4.2
-  firebase_crashlytics: ^5.1.0
-  firebase_performance: ^0.11.2
+  share_plus: ^12.0.2
+  firebase_app_check: ^0.4.3
+  firebase_crashlytics: ^5.2.0
+  firebase_performance: ^0.11.3
   permission_handler: ^12.0.1
 
 dev_dependencies:
