@@ -588,7 +588,7 @@ class _AddMedicalRecordSheetState extends State<_AddMedicalRecordSheet> {
           });
         }
       } else {
-        final result = await FilePicker.platform.pickFiles(
+        final result = await FilePicker.pickFiles(
           type: FileType.custom,
           allowedExtensions: ['pdf', 'doc', 'docx'],
           withData: true,

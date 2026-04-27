@@ -10,6 +10,9 @@ class Chat {
   final String patientId;
   final String patientName;
   final String? patientPhotoUrl;
+  final String? doctorPhotoUrl;
+  final String? doctorSpecialty;
+  final String? doctorSpecialtyAr;
   final String? lastMessage;
   final DateTime? lastMessageTime;
   final int unreadCountDoctor;
@@ -24,6 +27,9 @@ class Chat {
     required this.patientId,
     required this.patientName,
     this.patientPhotoUrl,
+    this.doctorPhotoUrl,
+    this.doctorSpecialty,
+    this.doctorSpecialtyAr,
     this.lastMessage,
     this.lastMessageTime,
     this.unreadCountDoctor = 0,
@@ -47,6 +53,9 @@ class Chat {
       patientId: map['patientId'] ?? '',
       patientName: map['patientName'] ?? '',
       patientPhotoUrl: map['patientPhotoUrl'] ?? map['patientPhotoURL'],
+      doctorPhotoUrl: map['doctorPhotoUrl'],
+      doctorSpecialty: map['doctorSpecialty'],
+      doctorSpecialtyAr: map['doctorSpecialtyAr'],
       lastMessage: map['lastMessage'],
       lastMessageTime: (map['lastMessageTime'] as Timestamp?)?.toDate(),
       unreadCountDoctor: map['unreadCountDoctor'] ?? 0,
@@ -64,6 +73,9 @@ class Chat {
       'patientId': patientId,
       'patientName': patientName,
       'patientPhotoUrl': patientPhotoUrl,
+      'doctorPhotoUrl': doctorPhotoUrl,
+      'doctorSpecialty': doctorSpecialty,
+      'doctorSpecialtyAr': doctorSpecialtyAr,
       'lastMessage': lastMessage,
       'lastMessageTime': lastMessageTime != null
           ? Timestamp.fromDate(lastMessageTime!)
@@ -82,6 +94,9 @@ class Chat {
     String? patientId,
     String? patientName,
     String? patientPhotoUrl,
+    String? doctorPhotoUrl,
+    String? doctorSpecialty,
+    String? doctorSpecialtyAr,
     String? lastMessage,
     DateTime? lastMessageTime,
     int? unreadCountDoctor,
@@ -96,6 +111,9 @@ class Chat {
       patientId: patientId ?? this.patientId,
       patientName: patientName ?? this.patientName,
       patientPhotoUrl: patientPhotoUrl ?? this.patientPhotoUrl,
+      doctorPhotoUrl: doctorPhotoUrl ?? this.doctorPhotoUrl,
+      doctorSpecialty: doctorSpecialty ?? this.doctorSpecialty,
+      doctorSpecialtyAr: doctorSpecialtyAr ?? this.doctorSpecialtyAr,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
       unreadCountDoctor: unreadCountDoctor ?? this.unreadCountDoctor,

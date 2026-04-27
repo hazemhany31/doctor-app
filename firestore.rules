@@ -145,5 +145,26 @@ service cloud.firestore {
       // blocks queries that rely on `get()` or `exists()` internally.
       allow read, write: if isAuthenticated();
     }
+
+    // ==========================================
+    // 7. Donations Collection
+    // ==========================================
+    match /donations/{donationId} {
+      allow read: if isAuthenticated();
+      
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || 
+        request.resource.data.donorId == request.auth.uid
+      );
+      
+      allow update: if (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.donorId == request.auth.uid)) || (
+        isDoctor() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verifiedBy', 'isRecommended'])
+      );
+      
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.donorId == request.auth.uid
+      );
+    }
   }
 }

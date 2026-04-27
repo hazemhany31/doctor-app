@@ -32,15 +32,21 @@ class Message {
   }
 
   /// إنشاء Message من Map
+  /// Backward-compatible: reads legacy nbig_app fields `messageType` and `imageBase64`
   factory Message.fromMap(String id, Map<String, dynamic> map) {
+    // Resolve image URL: prefer `imageUrl` (Storage URL), fallback to `imageBase64` (legacy nbig_app)
+    final resolvedImageUrl = map['imageUrl'] ?? map['imageBase64'];
+    // Resolve type: prefer `type`, fallback to `messageType` (legacy nbig_app)
+    final resolvedType = map['type'] ?? map['messageType'] ?? (resolvedImageUrl != null ? 'image' : 'text');
+
     return Message(
       id: id,
       senderId: map['senderId'] ?? '',
       senderName: map['senderName'] ?? '',
       senderType: map['senderType'] ?? 'patient',
       text: map['text'] ?? '',
-      imageUrl: map['imageUrl'],
-      type: map['type'] ?? (map['imageUrl'] != null ? 'image' : 'text'),
+      imageUrl: resolvedImageUrl,
+      type: resolvedType,
       sentAt: (map['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isRead: map['isRead'] ?? false,
     );

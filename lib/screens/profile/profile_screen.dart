@@ -8,8 +8,10 @@ import '../../services/auth_service.dart';
 import '../../services/push_notification_service.dart';
 import '../diagnostic_screen.dart';
 import '../setup/setup_doctor_profile_screen.dart';
+
 import '../settings/settings_screen.dart';
 import '../../l10n/app_localizations.dart';
+import 'donation_feed_screen.dart';
 
 /// شاشة الملف الشخصي — Premium Redesign
 class ProfileScreen extends StatefulWidget {
@@ -393,6 +395,14 @@ class ProfileScreenState extends State<ProfileScreen> {
             }
           }
         },
+      ),
+
+      _SettingItem(
+        icon: Icons.volunteer_activism_rounded,
+        color: AppColors.primary,
+        title: Localizations.localeOf(context).languageCode == 'ar' ? 'تبرعات المجتمع' : 'Community Donations',
+        subtitle: Localizations.localeOf(context).languageCode == 'ar' ? 'توصية المرضى بالأدوية المتوفرة' : 'Recommend medicines to patients',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DonationFeedScreen())),
       ),
       _SettingItem(
         icon: Icons.settings_rounded,

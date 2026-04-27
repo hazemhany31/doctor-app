@@ -15,7 +15,7 @@ import '../../config/constants.dart';
 import '../patients/patients_list_screen.dart';
 import '../../models/dashboard_data.dart';
 import '../../l10n/app_localizations.dart';
-import 'prescription_templates_screen.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -43,6 +43,10 @@ class DashboardScreenState extends State<DashboardScreen> {
 
   // Real-time notifications
   StreamSubscription? _notificationSubscription;
+
+  /// IDs of appointments deleted locally — filtered out instantly from the stream
+  /// to prevent them reappearing before Firestore confirms the deletion.
+  final Set<String> _deletedIds = {};
 
   @override
   void initState() {
@@ -551,49 +555,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PrescriptionTemplatesScreen(),
-                        ),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.description,
-                              size: 14,
-                              color: Colors.white.withValues(alpha: 0.85),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Templates',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontFamily: 'Cairo',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+
                   ],
                 ),
               ),
@@ -829,14 +791,19 @@ class DashboardScreenState extends State<DashboardScreen> {
             )
           else
             Column(
-              children: appointments.take(5).map((appt) {
+              children: appointments
+                  .where((a) => !_deletedIds.contains(a.id))
+                  .take(5)
+                  .map((appt) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: AppointmentCard(
                     appointment: appt,
-                    showActions: appt.status == AppConstants.appointmentPending,
+                    showActions: appt.status == AppConstants.appointmentPending ||
+                                appt.status == AppConstants.appointmentConfirmed,
                     onAccept: () => _handleAcceptAppointment(appt),
                     onReject: () => _handleRejectAppointment(appt),
+                    onDelete: () => _handleDelete(appt),
                     onTap: (appt.status == AppConstants.appointmentPending ||
                             appt.status == AppConstants.appointmentCancelled)
                         ? null
@@ -963,6 +930,40 @@ class DashboardScreenState extends State<DashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('حدث خطأ'), backgroundColor: AppColors.error),
         );
+      }
+    }
+  }
+
+  /// Immediately hides the card by adding to local set, then deletes from Firestore.
+  /// If Firestore fails, removes from local set so the card reappears.
+  Future<void> _handleDelete(Appointment appt) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (mounted) setState(() => _deletedIds.add(appt.id));
+    
+    try {
+      await _firestoreService.deleteAppointment(appt.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(Localizations.localeOf(context).languageCode == 'ar'
+              ? 'تم حذف الموعد'
+              : 'Appointment deleted'),
+          backgroundColor: Colors.grey.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (_) {
+      // Revert: let the card reappear if deletion failed
+      if (mounted) setState(() => _deletedIds.remove(appt.id));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(l10n.apptError),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ));
       }
     }
   }

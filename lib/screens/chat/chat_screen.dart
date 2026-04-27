@@ -1,4 +1,5 @@
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/chat.dart';
@@ -468,17 +469,7 @@ class _MessageBubble extends StatelessWidget {
                       if (message.type == 'image' && message.imageUrl != null)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: CachedNetworkImage(
-                            imageUrl: message.imageUrl!,
-                            placeholder: (context, url) => Container(
-                              width: 200,
-                              height: 200,
-                              color: Colors.grey.shade300,
-                              child: const Center(child: CircularProgressIndicator()),
-                            ),
-                            errorWidget: (context, url, error) => const Icon(Icons.error),
-                            fit: BoxFit.cover,
-                          ),
+                          child: _buildChatImage(message.imageUrl!),
                         ),
                       if (message.text.isNotEmpty)
                         Padding(
@@ -514,6 +505,48 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Builds image widget supporting both Firebase Storage URLs and legacy base64 data.
+  Widget _buildChatImage(String imageData) {
+    final bool isUrl = imageData.startsWith('http://') || imageData.startsWith('https://');
+    if (isUrl) {
+      return CachedNetworkImage(
+        imageUrl: imageData,
+        placeholder: (context, url) => Container(
+          width: 200,
+          height: 200,
+          color: Colors.grey.shade300,
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 200,
+          height: 150,
+          color: Colors.grey.shade200,
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image_rounded, color: Colors.grey, size: 40),
+              SizedBox(height: 8),
+              Text('فشل تحميل الصورة', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
+        ),
+        fit: BoxFit.cover,
+      );
+    } else {
+      // Legacy base64 data from old nbig_app messages
+      try {
+        return Image.memory(
+          base64Decode(imageData),
+          fit: BoxFit.cover,
+          width: 200,
+          errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image),
+        );
+      } catch (_) {
+        return const Icon(Icons.broken_image, color: Colors.grey);
+      }
+    }
   }
 
   Widget _buildAvatar(String? photoUrl, String name, String fallbackInitial, {Color? color}) {
