@@ -574,7 +574,8 @@ class DashboardScreenState extends State<DashboardScreen> {
         children: [
           _buildSectionTitle('Overview'),
           const SizedBox(height: 12),
-          Row(
+          _StaggeredRow(
+            delay: 0,
             children: [
               Expanded(
                 child: _buildStatCard(
@@ -589,6 +590,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                       builder: (_) => const AppointmentsScreen(initialIndex: 0),
                     ),
                   ),
+                  countUpValue: data.todayPatients,
                 ),
               ),
               const SizedBox(width: 12),
@@ -600,12 +602,15 @@ class DashboardScreenState extends State<DashboardScreen> {
                   AppColors.success,
                   AppColors.success.withValues(alpha: 0.1),
                   null,
+                  countUpValue: data.dailyIncome.toInt(),
+                  prefix: '\$',
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
+          _StaggeredRow(
+            delay: 100,
             children: [
               Expanded(
                 child: _buildStatCard(
@@ -620,6 +625,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                       builder: (_) => const AppointmentsScreen(initialIndex: 1),
                     ),
                   ),
+                  countUpValue: data.pendingAppointments,
                 ),
               ),
               const SizedBox(width: 12),
@@ -636,12 +642,14 @@ class DashboardScreenState extends State<DashboardScreen> {
                       builder: (_) => const AppointmentsScreen(initialIndex: 2),
                     ),
                   ),
+                  countUpValue: data.upcomingAppointments,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
+          _StaggeredRow(
+            delay: 200,
             children: [
               Expanded(
                 child: _buildStatCard(
@@ -656,6 +664,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                       builder: (_) => const PatientsListScreen(),
                     ),
                   ),
+                  countUpValue: data.totalPatients,
                 ),
               ),
               const SizedBox(width: 12),
@@ -668,7 +677,8 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStatCard(
-      String label, String value, IconData icon, Color color, Color bg, VoidCallback? onTap) {
+      String label, String value, IconData icon, Color color, Color bg, VoidCallback? onTap,
+      {int countUpValue = 0, String prefix = ''}) {
     final c = AppColors.of(context);
     return GestureDetector(
       onTap: onTap,
@@ -695,14 +705,22 @@ class DashboardScreenState extends State<DashboardScreen> {
               child: Icon(icon, color: color, size: 18),
             ),
             const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: color,
-                fontFamily: 'Cairo',
-              ),
+            // Count-up number animation
+            TweenAnimationBuilder<int>(
+              tween: IntTween(begin: 0, end: countUpValue),
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+              builder: (context, val, _) {
+                return Text(
+                  '$prefix$val',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    fontFamily: 'Cairo',
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 2),
             Text(
@@ -966,5 +984,32 @@ class DashboardScreenState extends State<DashboardScreen> {
         ));
       }
     }
+  }
+}
+
+/// Staggered row entrance animation for dashboard stat cards
+class _StaggeredRow extends StatelessWidget {
+  final int delay;
+  final List<Widget> children;
+
+  const _StaggeredRow({required this.delay, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 500 + delay),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Row(children: children),
+    );
   }
 }
