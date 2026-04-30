@@ -47,7 +47,7 @@ dependencies:
   provider: ^6.1.1
   
   # UI Components
-  google_fonts: ^8.0.2
+  google_fonts: ^8.1.0
   flutter_svg: ^2.0.9
   cached_network_image: ^3.3.1
   shimmer: ^3.0.0
@@ -55,7 +55,7 @@ dependencies:
   
   # Utilities
   intl: ^0.20.2  # For date formatting & Arabic support
-  image_picker: ^1.0.7
+  image_picker: ^1.2.2
   file_picker: ^11.0.2
   url_launcher: ^6.3.0
   shared_preferences: ^2.5.4
